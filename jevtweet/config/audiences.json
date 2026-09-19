@@ -1,0 +1,124 @@
+[
+  {
+    "schema_version": "1",
+    "audience_id": "production_ai_coding",
+    "version": "1",
+    "description": "Engineers shipping and maintaining production software with AI coding tools.",
+    "interests": [
+      "correctness",
+      "tests",
+      "code review",
+      "debugging",
+      "deployment",
+      "measured developer workflows"
+    ],
+    "assumed_knowledge": [
+      "Git",
+      "automated tests",
+      "production incidents"
+    ],
+    "examples": [
+      "A reproducible agent debugging workflow with a failing test and verified repair.",
+      "A concrete tradeoff in reviewing generated database migrations."
+    ],
+    "assumptions": [
+      "Seed persona; not validated follower research."
+    ]
+  },
+  {
+    "schema_version": "1",
+    "audience_id": "indie_saas",
+    "version": "1",
+    "description": "Solo founders building sustainable small software businesses in public.",
+    "interests": [
+      "customer discovery",
+      "pricing",
+      "retention",
+      "shipping",
+      "operational costs"
+    ],
+    "assumed_knowledge": [
+      "SaaS basics",
+      "MRR is revenue, not profit"
+    ],
+    "examples": [
+      "What five customer interviews changed in an onboarding flow.",
+      "A transparent account of an unsuccessful launch."
+    ],
+    "assumptions": [
+      "Seed persona; not validated follower research."
+    ]
+  },
+  {
+    "schema_version": "1",
+    "audience_id": "humanoid_robotics",
+    "version": "1",
+    "description": "Builders and technically curious observers of humanoid robots.",
+    "interests": [
+      "embodied autonomy",
+      "hardware reliability",
+      "demonstrations",
+      "manufacturing"
+    ],
+    "assumed_knowledge": [
+      "robot sensing",
+      "simulation versus real-world deployment"
+    ],
+    "examples": [
+      "A failure analysis of grasping outside a laboratory.",
+      "A documented battery-versus-payload tradeoff."
+    ],
+    "assumptions": [
+      "Seed persona; not validated follower research."
+    ]
+  },
+  {
+    "schema_version": "1",
+    "audience_id": "smb_ai_workflows",
+    "version": "1",
+    "description": "Small business operators applying AI to repeatable administrative work.",
+    "interests": [
+      "customer support",
+      "invoicing",
+      "scheduling",
+      "data privacy",
+      "time savings"
+    ],
+    "assumed_knowledge": [
+      "spreadsheets",
+      "everyday business operations"
+    ],
+    "examples": [
+      "A bounded invoice triage workflow with human exception review.",
+      "Before/after process steps and observed limitations."
+    ],
+    "assumptions": [
+      "Seed persona; not validated follower research."
+    ]
+  },
+  {
+    "schema_version": "1",
+    "audience_id": "no_code_ai",
+    "version": "1",
+    "description": "Non-specialist makers building practical applications with no-code and AI tools.",
+    "interests": [
+      "prototyping",
+      "data flows",
+      "deployment",
+      "maintainability",
+      "accessible tools"
+    ],
+    "assumed_knowledge": [
+      "forms",
+      "tables",
+      "basic automation"
+    ],
+    "examples": [
+      "A small working app walkthrough with a clear user problem.",
+      "How to recover when an automation handles the wrong record."
+    ],
+    "assumptions": [
+      "Seed persona; not validated follower research."
+    ]
+  }
+]

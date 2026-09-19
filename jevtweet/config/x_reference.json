@@ -1,0 +1,34 @@
+{
+  "retrieved_at": "2026-09-18",
+  "repository": "xai-org/x-algorithm",
+  "commit": "c279172eb8a992170f077d4c1d441923ef215d2e",
+  "commit_timestamp": "2026-09-18T01:07:14Z",
+  "parameter_sync": "2026-09-17T20:46:44Z",
+  "source_paths": [
+    "home-mixer/params/param.rs",
+    "home-mixer/scorers/ranking_scorer.rs",
+    "phoenix/README.md"
+  ],
+  "predicted_action_coefficients": {
+    "like": 0.5,
+    "repost": 1,
+    "reply": 5,
+    "quote": 5,
+    "share": 2,
+    "share_dm": 5,
+    "share_copy_link": 20,
+    "follow": 4,
+    "not_interested": -43.2,
+    "block": -31.2,
+    "mute": -58.8,
+    "report": -234
+  },
+  "hypotheses": [
+    "forwarding value",
+    "conversation value",
+    "sustained attention",
+    "follow value",
+    "audience aversion"
+  ],
+  "use": "Reference only. Never multiply semantic features by these coefficients. Not the complete deployed ranking system."
+}

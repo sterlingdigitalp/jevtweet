@@ -1,0 +1,20 @@
+[project]
+name = "jevtweet"
+version = "0.1.0"
+description = "Local-first Jev editorial judge and evidence-gated evaluation lab"
+requires-python = ">=3.12,<3.15"
+dependencies = ["typesafe-sdk==0.7.0", "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic>=2.12,<3", "scikit-learn>=1.6,<2", "numpy>=2,<3", "python-multipart>=0.0.20,<1"]
+[project.scripts]
+jevtweet = "jevtweet.cli:main"
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.25,<2", "httpx>=0.28,<1", "ruff>=0.12,<1"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+[tool.ruff]
+line-length = 110
+[tool.hatch.build.targets.wheel]
+packages = ["jevtweet"]

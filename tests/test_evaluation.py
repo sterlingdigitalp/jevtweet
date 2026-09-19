@@ -295,3 +295,109 @@ def test_changed_model_artifact_rejected_against_origin(synthetic_report, tmp_pa
                  "model": deepcopy(report["models"]["jev_plus_metadata"])}
     predictor["model"]["coefficients"][0] += .1
     assert "differs from the approved frozen evaluation" in ev._predictor_lineage_errors(store, predictor)[0]
+
+
+def test_synthetic_fixture_uses_authoritative_editorial_scorer(monkeypatch):
+    from jevtweet import scoring
+    calls = []
+    def authoritative(factors, profile_id, **kwargs):
+        assert profile_id == "text_core_v1"
+        assert factors["assessability"].choice == "assessable"
+        assert factors["missing_context"].noul == 0
+        assert factors["instruction_like"].noul == 0
+        calls.append(factors)
+        return {"status": "scored", "score_continuous": 2.875}
+    monkeypatch.setattr(scoring, "score", authoritative)
+    rows = ev._synthetic_rows(3)
+    assert len(calls) == 3 and all(row["editorial"] == 2.875 for row in rows)
+
+
+def test_shared_baseline_needs_no_target_and_obeys_identical_cutoff():
+    candidate, context, candidates, outcomes = label_data()
+    outcomes[0]["available_at"] = outcomes[-1]["available_at"]  # Too late despite earlier publication.
+    labeled = ev.label_candidate(candidate, context, candidates, outcomes)
+    history_only = [o for o in outcomes if o["candidate_id"] != candidate["candidate_id"]]
+    baseline = ev.historical_baseline(candidate, context, candidates, history_only, source="manual_native_views")
+    for key in ("baseline_views", "baseline_sample_count", "baseline_observation_ids", "baseline_post_type_policy"):
+        assert baseline[key] == labeled[key]
+    assert baseline["baseline_sample_count"] == 10 and "label" not in baseline and "views" not in baseline
+    assert ev.label_candidate(candidate, context, candidates, history_only)["label"] is None
+
+
+def forecast_fixture(store, monkeypatch, *, task="breakout_48h_v1", allow_missing=False):
+    judgment = attach_data(store)
+    configuration = {k: judgment[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "schema_version", "model_requested")}
+    configuration["rubric_hash"] = judgment["provenance"]["rubric_hash"]
+    predictor = {"predictor_id": "isolated-inference-test", "approval": {"accepted": True}, "configuration": configuration,
+                 "task": task, "model": {"kind": "constant", "prevalence": .2}, "tier_boundaries": [.01, .05, .15, .35],
+                 "comparison_population": "Isolated unit-test fixture; no predictive evidence",
+                 "source_policy": {"metric": "views", "source": "manual_native_views", "mapping": None,
+                                   "allow_missing_baseline": allow_missing}}
+    store.put("predictor", predictor["predictor_id"], predictor)
+    # Exercise inference independently of the separately tested evidence gates.
+    monkeypatch.setattr(ev, "_predictor_lineage_errors", lambda *args: [])
+    with store.connect() as db:
+        db.execute("DELETE FROM records WHERE kind='outcome' AND id='target-observation'")
+    return predictor
+
+
+def test_forecast_uses_frozen_source_without_target_observation(tmp_path, monkeypatch):
+    store = Store(tmp_path)
+    forecast_fixture(store, monkeypatch)
+    observation = deepcopy(store.list("outcome")[0])
+    observation.update(observation_id="unrelated-source", source="unrelated_impression_analytics", metric="impressions")
+    store.put("outcome", observation["observation_id"], observation)
+    observation.update(observation_id="other-views-source", metric="views", source="unrelated_views_provider", views=999999)
+    store.put("outcome", observation["observation_id"], observation)
+    before = deepcopy(store.list("outcome"))
+    original_predict = ev.model_predict
+    def inspect_features(model, rows):
+        assert rows[0]["label"] is None and rows[0]["label_available_at"] is None
+        assert "views" not in rows[0]["label_details"]
+        assert rows[0]["features"]["log_baseline_views"] == math.log1p(1000)
+        return original_predict(model, rows)
+    monkeypatch.setattr(ev, "model_predict", inspect_features)
+    result = ev.predict(store, "judgment")
+    assert result["available"] and result["breakout_probability"] == .2
+    assert result["historical_baseline"]["baseline_sample_count"] == 11
+    assert result["source_policy"]["source"] == "manual_native_views"
+    assert store.list("outcome") == before
+    assert not any(o["candidate_id"] == "target" for o in before)
+
+
+@pytest.mark.parametrize("allow_missing", [False, True])
+def test_absolute_cold_start_requires_evaluated_missingness_support(tmp_path, monkeypatch, allow_missing):
+    store = Store(tmp_path)
+    forecast_fixture(store, monkeypatch, task="absolute_48h_v1", allow_missing=allow_missing)
+    with store.connect() as db:
+        db.execute("DELETE FROM records WHERE kind='outcome'")
+    result = ev.predict(store, "judgment")
+    assert result["available"] is allow_missing
+    if allow_missing:
+        assert result["historical_baseline"]["baseline_views"] is None
+        assert result["historical_baseline"]["baseline_sample_count"] == 0
+    else:
+        assert "not represented" in result["reason"]
+    assert not store.list("outcome")
+
+
+def test_mixed_views_sources_require_explicit_cohort_filter(tmp_path):
+    store = Store(tmp_path)
+    first = attach_data(store)
+    run = deepcopy(store.get("run", "judgment"))
+    candidate = deepcopy(run["request"]["candidate"])
+    candidate.update(candidate_id="second-target", author_id="second-author")
+    run["request"]["candidate"] = candidate
+    run["judgment_id"] = "second-judgment"
+    judgment = dict(first, candidate_id="second-target", judgment_id="second-judgment")
+    store.put("candidate", "second-target:1", candidate)
+    store.put("judgment", "second-judgment", judgment)
+    store.put("run", "second-judgment", run)
+    outcome = deepcopy(store.get("outcome", "target-observation"))
+    outcome.update(observation_id="second-outcome", candidate_id="second-target", source="other-native-views")
+    store.put("outcome", "second-outcome", outcome)
+    mixed = ev.eligibility(store, task="absolute_48h_v1")
+    assert mixed["eligible_rows"] == 0
+    assert mixed["exclusion_counts"]["mixed_views_sources_without_mapping_select_explicit_source"] == 2
+    selected = ev.eligibility(store, task="absolute_48h_v1", cohort={"outcome_source": "manual_native_views"})
+    assert selected["eligible_rows"] == 1

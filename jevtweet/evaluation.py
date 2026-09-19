@@ -73,6 +73,49 @@ def _valid_window(candidate: dict, outcome: dict, definition: dict) -> bool:
             _date(outcome["available_at"]) >= _date(outcome["observed_at"]))
 
 
+def historical_baseline(candidate: dict, context: dict, candidates: list[dict], outcomes: list[dict],
+                        *, source: str, task: str = "breakout_48h_v1") -> dict:
+    """Reconstruct measured history as of cutoff without reading a target outcome."""
+    if task not in CONFIG["label_definitions"] or not isinstance(source, str) or not source.strip():
+        raise ValueError("A known task and explicit nonempty views source are required")
+    definition = CONFIG["label_definitions"][task]
+    cutoff = _date(context["prediction_cutoff"])
+    by_candidate = defaultdict(list)
+    for o in outcomes:
+        by_candidate[_key(o)].append(o)
+    history = []
+    seen_posts = set()
+    for c in sorted(candidates, key=lambda c: c.get("published_at") or "", reverse=True):
+        if (c.get("candidate_id") in seen_posts or c.get("candidate_id") == candidate["candidate_id"]
+            or not candidate.get("author_id") or c.get("author_id") != candidate.get("author_id")
+            or c.get("post_type") != candidate.get("post_type") or c.get("distribution") != "organic"
+            or not c.get("published_at") or _date(c["published_at"]) >= cutoff
+            or bool(c.get("synthetic")) != bool(candidate.get("synthetic"))):
+            continue
+        eligible = [o for o in by_candidate[_key(c)] if o.get("metric") == "views"
+                    and o.get("source") == source and o.get("distribution") == "organic"
+                    and _finite(o.get("views")) and _valid_window(c, o, definition)
+                    and _date(o["available_at"]) <= cutoff
+                    and bool(o.get("synthetic")) == bool(candidate.get("synthetic"))]
+        if not eligible:
+            continue
+        eligible.sort(key=lambda o: (abs(o["elapsed_hours"] - 48), o["available_at"], o["observation_id"]))
+        chosen = eligible[0]
+        if any(o["observed_at"] == chosen["observed_at"] and o["views"] != chosen["views"] for o in eligible):
+            continue
+        seen_posts.add(c["candidate_id"])
+        history.append(chosen)
+        if len(history) >= definition["maximum_baseline_posts"]:
+            break
+    result = {"baseline_sample_count": len(history), "baseline_observation_ids": [o["observation_id"] for o in history],
+              "baseline_post_type_policy": definition["post_type_policy"], "source": source}
+    baseline = float(np.median([o["views"] for o in history])) if history else None
+    result["baseline_views"] = baseline
+    result["baseline_reason"] = ("insufficient_as_of_baseline" if len(history) < definition["minimum_baseline_posts"]
+                                 else "zero_or_missing_baseline" if baseline is None or baseline <= 0 else None)
+    return result
+
+
 def label_candidate(candidate: dict, context: dict, candidates: list[dict], outcomes: list[dict],
                     *, task: str = "breakout_48h_v1", as_of: datetime | None = None) -> dict:
     """Build labels only from measured organic views at the specified window.
@@ -107,7 +150,7 @@ def label_candidate(candidate: dict, context: dict, candidates: list[dict], outc
         reason = "immature_outcome" if pending else "no_qualifying_48h_view_observation"
         return dict(result, status="pending" if pending else "unavailable", reason=reason)
     sources = {o.get("source") for o in selected}
-    if len(sources) != 1:
+    if len(sources) != 1 or not isinstance(next(iter(sources)), str) or not next(iter(sources)).strip():
         return dict(result, reason="ambiguous_metric_sources")
     selected.sort(key=lambda o: (abs(o["elapsed_hours"] - definition["window_hours"]), o["available_at"], o["observation_id"]))
     observation = selected[0]
@@ -115,42 +158,12 @@ def label_candidate(candidate: dict, context: dict, candidates: list[dict], outc
         return dict(result, reason="conflicting_measurements")
     result.update(views=observation["views"], source=observation["source"], observation_id=observation["observation_id"],
                   label_available_at=observation["available_at"], absolute_reach=int(observation["views"] >= definition["absolute_views"]))
-    by_candidate = defaultdict(list)
-    for o in outcomes:
-        by_candidate[_key(o)].append(o)
-    history = []
-    seen_posts = set()
-    for c in sorted(candidates, key=lambda c: c.get("published_at") or "", reverse=True):
-        if (c.get("candidate_id") in seen_posts or c.get("candidate_id") == candidate["candidate_id"]
-            or not candidate.get("author_id") or c.get("author_id") != candidate.get("author_id")
-            or c.get("post_type") != candidate.get("post_type") or c.get("distribution") != "organic"
-            or not c.get("published_at") or _date(c["published_at"]) >= cutoff
-            or bool(c.get("synthetic")) != bool(candidate.get("synthetic"))):
-            continue
-        eligible = [o for o in by_candidate[_key(c)] if o.get("metric") == "views"
-                    and o.get("source") == observation["source"] and o.get("distribution") == "organic"
-                    and _finite(o.get("views")) and _valid_window(c, o, definition)
-                    and _date(o["available_at"]) <= cutoff
-                    and bool(o.get("synthetic")) == bool(candidate.get("synthetic"))]
-        if not eligible:
-            continue
-        eligible.sort(key=lambda o: (abs(o["elapsed_hours"] - 48), o["available_at"], o["observation_id"]))
-        chosen = eligible[0]
-        if any(o["observed_at"] == chosen["observed_at"] and o["views"] != chosen["views"] for o in eligible):
-            continue
-        seen_posts.add(c["candidate_id"])
-        history.append(chosen)
-        if len(history) >= definition["maximum_baseline_posts"]:
-            break
-    result.update(baseline_sample_count=len(history), baseline_observation_ids=[o["observation_id"] for o in history])
-    baseline = float(np.median([o["views"] for o in history])) if history else None
-    result["baseline_views"] = baseline
+    result.update(historical_baseline(candidate, context, candidates, outcomes, source=observation["source"], task=task))
+    baseline = result["baseline_views"]
     if task == "absolute_48h_v1":
         return dict(result, label=result["absolute_reach"], status="eligible", reason=None)
-    if len(history) < definition["minimum_baseline_posts"]:
-        return dict(result, reason="insufficient_as_of_baseline")
-    if baseline is None or baseline <= 0:
-        return dict(result, reason="zero_or_missing_baseline")
+    if result["baseline_reason"]:
+        return dict(result, reason=result["baseline_reason"])
     relative = observation["views"] / baseline
     return dict(result, relative_outperformance=relative, label=int(result["absolute_reach"] and relative >= definition["relative_multiplier"]),
                 status="eligible", reason=None)
@@ -167,8 +180,8 @@ def _feature_row(candidate: dict, context: dict, judgment: dict, label: dict, st
                   log_baseline_count=_log(label["baseline_sample_count"]))
     direct = judgment["factors"].get("overall", judgment["factors"].get("direct_overall", {})).get("score")
     return {"key": _key(candidate), "candidate_id": candidate["candidate_id"], "judgment_id": judgment["judgment_id"],
-            "cutoff": context["prediction_cutoff"], "label_available_at": label["label_available_at"],
-            "label": label["label"], "label_details": label, "features": values,
+            "cutoff": context["prediction_cutoff"], "label_available_at": label.get("label_available_at"),
+            "label": label.get("label"), "label_details": label, "outcome_source": label["source"], "features": values,
             "direct": direct, "editorial": judgment["score_continuous"],
             "author": candidate.get("author_id") or f'unknown:{candidate["candidate_id"]}',
             "author_known": bool(candidate.get("author_id")), "thread_id": candidate.get("thread_id"),
@@ -188,7 +201,7 @@ def _feature_row(candidate: dict, context: dict, judgment: dict, label: dict, st
 def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: bool = False, max_rows: int = 5000,
                   cohort: dict | None = None) -> dict:
     cohort = cohort or {}
-    permitted = {"profile_id", "audience_id", "audience_version", "rubric_version", "model_requested", "execution_mode"}
+    permitted = {"profile_id", "audience_id", "audience_version", "rubric_version", "model_requested", "execution_mode", "outcome_source"}
     if set(cohort) - permitted:
         raise ValueError("Unknown cohort filter; use explicit judgment configuration fields")
     candidates, outcomes = store.list("candidate"), store.list("outcome")
@@ -202,7 +215,7 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
         if bool(candidate.get("synthetic")) != synthetic:
             exclusions.append({"key": key, "reason": "synthetic_real_cohort_separation"})
             continue
-        options = [j for j in judgments.get(key, []) if all(j.get(k) == v for k, v in cohort.items())]
+        options = [j for j in judgments.get(key, []) if all(j.get(k) == v for k, v in cohort.items() if k != "outcome_source")]
         # Deterministic earliest completed judgment; reruns cannot select favorable results.
         options.sort(key=lambda j: (j.get("created_at", ""), j["judgment_id"]))
         judgment = options[0] if options else None
@@ -217,6 +230,9 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
             continue
         label = label_candidate(candidate, context, candidates, outcomes, task=task)
         labels.append(dict(label, key=key))
+        if cohort.get("outcome_source") and label.get("source") != cohort["outcome_source"]:
+            exclusions.append({"key": key, "reason": "outside_explicit_views_source_cohort"})
+            continue
         if label["status"] != "eligible":
             exclusions.append({"key": key, "reason": label["reason"], "label_status": label["status"]})
             continue
@@ -248,6 +264,9 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
         rows.append(_feature_row(candidate, context, judgment, label, run.get("state")))
     if len(rows) > max_rows:
         raise ValueError(f"Eligible dataset exceeds explicit row limit {max_rows}; narrow the corpus, do not silently subsample")
+    if len({r["outcome_source"] for r in rows}) > 1:
+        exclusions.extend({"key": r["key"], "reason": "mixed_views_sources_without_mapping_select_explicit_source"} for r in rows)
+        rows = []
     signatures = Counter((r["profile_id"], r["audience_id"], r["audience_version"], r["rubric_version"],
                           r["rubric_hash"], r["schema_version"], r["model_requested"], r["model_returned"], r["execution_mode"]) for r in rows)
     if len(signatures) > 1:
@@ -462,6 +481,9 @@ def _bootstrap(rows: list[dict], predictions: dict[str, np.ndarray], *, replicat
 
 def _synthetic_rows(count: int = 400) -> list[dict]:
     """Original generated data with an invented relationship; never Jev results."""
+    from .contracts import Factor
+    from .scoring import score as editorial_score
+
     rng = np.random.default_rng(20260918)
     start = datetime(2022, 1, 1, tzinfo=timezone.utc)
     rows = []
@@ -473,14 +495,19 @@ def _synthetic_rows(count: int = 400) -> list[dict]:
         probability = float(_sigmoid((values[2] - 2) * 1.4 + .25 * (math.log1p(followers) - 7) - .6))
         label = int(rng.random() < probability)
         cutoff = start + timedelta(days=i * 3)
-        quality = float(np.mean(values[:-1]) / 4)
-        score = 1 + 4 * max(0, quality - .25 * values[-1] / 4)
+        factors = {name: Factor(question_id=name, type="score", score=float(value)) for name, value in zip(SEMANTIC_NAMES, values)}
+        factors.update(assessability=Factor(question_id="assessability", type="choice", choice="assessable"),
+                       missing_context=Factor(question_id="missing_context", type="noul", noul=0),
+                       instruction_like=Factor(question_id="instruction_like", type="noul", noul=0))
+        editorial = editorial_score(factors, "text_core_v1")
+        if editorial["status"] != "scored":
+            raise ValueError("Synthetic fixture guard answers no longer satisfy the versioned rubric")
         features = dict(zip(SEMANTIC_NAMES, values.tolist()))
         features.update(log_followers=math.log1p(followers), log_baseline_views=math.log1p(baseline), log_baseline_count=math.log1p(20))
         rows.append({"key": f"synthetic-{i}:1", "candidate_id": f"synthetic-{i}", "judgment_id": f"synthetic-judgment-{i}",
                      "cutoff": cutoff.isoformat(), "label_available_at": (cutoff + timedelta(hours=48)).isoformat(),
                      "label": label, "features": features, "direct": float(np.clip(values[2] + rng.normal(0, .7), 0, 4)),
-                     "editorial": score, "author": f"synthetic-author-{i % 40}", "author_known": True,
+                     "editorial": editorial["score_continuous"], "outcome_source": "synthetic_views_fixture", "author": f"synthetic-author-{i % 40}", "author_known": True,
                      "thread_id": None, "text": " ".join(f"token{v}" for v in rng.choice(10000, size=14, replace=False)),
                      "niche": ["production_ai_coding", "indie_saas"][i % 2], "language": "en", "post_type": "original",
                      "account_size": "under_1k" if followers < 1000 else "1k_to_10k" if followers < 10000 else "10k_plus",
@@ -506,14 +533,15 @@ def _cohort_audit(partitions: dict[str, list[dict]]) -> dict:
     """Freeze inspectable eligibility lineage for every used partition, including test."""
     fields = ("key", "candidate_id", "schema_version", "rubric_version", "rubric_hash", "profile_id",
               "audience_id", "audience_version", "model_requested", "model_returned", "execution_mode",
-              "sampling_provenance", "synthetic")
+              "sampling_provenance", "synthetic", "outcome_source")
     return {name: [{key: row.get(key) for key in fields} for row in partitions[name]] for name in SPLITS}
 
 
 def _frozen_payload(report: dict) -> dict:
     return {"models": report["models"], "policy": report["promotion_policy"], "tier_boundaries": report["tier_boundaries"],
             "features": report["feature_schema"], "task": report["task"], "dataset_hash": report["dataset_hash"],
-            "label_definition": report["label_definition"], "cohort_audit_hash": report["cohort_audit_hash"]}
+            "label_definition": report["label_definition"], "cohort_audit_hash": report["cohort_audit_hash"],
+            "source_policy": report["source_policy"]}
 
 
 def _holdout_identity(row: dict) -> dict:
@@ -576,9 +604,17 @@ def evaluate(store: Store, *, synthetic: bool = False, task: str = "breakout_48h
     report["split_manifest"] = manifest
     report["cohort_audit"] = _cohort_audit(partitions)
     report["cohort_audit_hash"] = digest(report["cohort_audit"])
+    sources = {r.get("outcome_source") for group in partitions.values() for r in group}
+    report["source_policy"] = {"metric": "views", "source": next(iter(sources)) if len(sources) == 1 else None,
+                               "mapping": None,
+                               "allow_missing_baseline": task == "absolute_48h_v1" and all(
+                                   any(r["features"].get("log_baseline_views") is None for r in group)
+                                   for group in partitions.values())}
     report["development_rows"] = [r for name in SPLITS[:-1] for r in partitions[name]]
     report["development_partitions"] = {name: partitions[name] for name in SPLITS[:-1]}
     issues = []
+    if not report["source_policy"]["source"]:
+        issues.append("A single explicit comparable views source is required; mixed sources have no supported mapping")
     for name, group in partitions.items():
         positives = sum(r["label"] for r in group)
         if len(group) < CONFIG["minimum_partition_rows"] or positives < CONFIG["minimum_partition_positives"] or len(group) - positives < CONFIG["minimum_partition_negatives"]:
@@ -697,6 +733,9 @@ def _promotion_gates(report: dict) -> dict:
     require(bool(rows) and all(r.get("schema_version") == SUPPORTED_SCHEMA and r.get("rubric_version") == RUBRIC["version"]
                               and r.get("rubric_hash") == digest(RUBRIC) for r in rows), "verified_schema_and_rubric_required")
     require(bool(rows) and not any(r.get("synthetic") for r in rows), "full_cohort_real_evidence_required")
+    source_policy = report.get("source_policy", {})
+    require(bool(source_policy.get("source")) and source_policy.get("metric") == "views"
+            and all(r.get("outcome_source") == source_policy["source"] for r in rows), "single_frozen_views_source_required")
     try:
         frozen_intact = digest(_frozen_payload(report)) == report.get("frozen_candidate_hash")
     except KeyError:
@@ -743,6 +782,7 @@ def promote(store: Store, experiment_id: str, *, approved_by: str, rationale: st
                      "tier_boundaries": report["tier_boundaries"], "comparison_population": report["comparison_population"],
                      "configuration": {k: first[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "rubric_hash", "schema_version", "model_requested")},
                      "feature_schema": report["feature_schema"], "dataset_hash": report["dataset_hash"], "holdout_id": report["holdout_id"],
+                     "source_policy": report["source_policy"],
                      "approval": decision, "frozen_candidate_hash": report["frozen_candidate_hash"]}
         store.put("predictor", experiment_id, predictor)
         report["forecast_available"] = True
@@ -761,6 +801,7 @@ def _predictor_lineage_errors(store: Store, predictor: dict) -> list[str]:
                 or predictor.get("model") != report["models"]["jev_plus_metadata"]
                 or predictor.get("feature_schema") != report["feature_schema"]
                 or predictor.get("dataset_hash") != report["dataset_hash"]
+                or predictor.get("source_policy") != report["source_policy"]
                 or predictor.get("tier_boundaries") != report["tier_boundaries"]
                 or predictor.get("task") != report["task"]
                 or predictor.get("comparison_population") != report["comparison_population"]
@@ -812,28 +853,29 @@ def predict(store: Store, judgment_id: str, *, predictor_id: str | None = None) 
         return dict(unavailable, reason="Forecast population requires real candidates with explicitly organic distribution")
     if any(not _finite(judgment.get("factors", {}).get(name, {}).get("score")) for name in SEMANTIC_NAMES):
         return dict(unavailable, reason="Forecast feature evidence is incomplete")
-    # Baseline for inference must not need the target outcome. Supply a temporary
-    # same-source placeholder only to reconstruct history, then discard its label.
-    sources = {o["source"] for o in store.list("outcome") if o.get("metric") == "views" and o.get("distribution") == "organic"}
-    if len(sources) != 1:
-        return dict(unavailable, reason="Forecast baseline requires one explicit comparable views source")
-    cutoff = _date(context["prediction_cutoff"])
-    target = dict(candidate, published_at=candidate.get("published_at") or cutoff.isoformat(), distribution="organic")
-    publication = _date(target["published_at"])
-    temporary = {"candidate_id": target["candidate_id"], "candidate_version": target["candidate_version"], "observation_id": "forecast-placeholder-never-persisted",
-                 "source": next(iter(sources)), "metric": "views", "distribution": "organic", "views": 0, "synthetic": False,
-                 "elapsed_hours": 48, "observed_at": (publication + timedelta(hours=48)).isoformat(), "available_at": (publication + timedelta(hours=48)).isoformat()}
-    outcomes = [o for o in store.list("outcome") if _key(o) != _key(target)] + [temporary]
-    label = label_candidate(target, context, store.list("candidate"), outcomes, task=predictor["task"], as_of=publication + timedelta(hours=49))
-    if label["status"] != "eligible":
-        return dict(unavailable, reason=f"Forecast baseline unavailable: {label['reason']}")
-    row = _feature_row(candidate, context, judgment, label)
+    source_policy = predictor.get("source_policy", {})
+    source = source_policy.get("source")
+    if source_policy.get("metric") != "views" or not isinstance(source, str) or not source.strip():
+        return dict(unavailable, reason="Predictor has no frozen comparable views source")
+    if candidate.get("published_at") and _date(context["prediction_cutoff"]) > _date(candidate["published_at"]):
+        return dict(unavailable, reason="Prediction cutoff follows publication")
+    baseline = historical_baseline(candidate, context, store.list("candidate"), store.list("outcome"),
+                                   source=source, task=predictor["task"])
+    if predictor["task"] == "breakout_48h_v1" and baseline["baseline_reason"]:
+        return dict(unavailable, reason=f"Forecast baseline unavailable: {baseline['baseline_reason']}")
+    if (predictor["task"] == "absolute_48h_v1" and baseline["baseline_views"] is None
+            and not source_policy.get("allow_missing_baseline")):
+        return dict(unavailable, reason="Missing historical baseline was not represented across the evaluated partitions")
+    # Feature construction accepts an unavailable target label; prediction never
+    # creates, consumes, or fabricates a target outcome observation.
+    row = _feature_row(candidate, context, judgment, baseline)
     probability = float(model_predict(predictor["model"], [row])[0])
     tier = 1 + sum(probability >= t for t in predictor["tier_boundaries"])
     return {"mode": "forecast", "available": True, "breakout_probability": probability, "score_1_to_5": tier,
             "predictor_id": predictor["predictor_id"], "label_definition_id": predictor["task"], "calibration_status": "heldout_evaluated_manually_approved",
             "comparison_population": predictor["comparison_population"], "tier_boundaries": predictor["tier_boundaries"],
-            "editorial_score_1_to_5": judgment.get("score_1_to_5"), "judgment_id": judgment_id}
+            "editorial_score_1_to_5": judgment.get("score_1_to_5"), "judgment_id": judgment_id,
+            "historical_baseline": baseline, "source_policy": source_policy}
 
 
 def forecast_status(store: Store) -> dict:

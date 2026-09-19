@@ -40,13 +40,77 @@ def _number(value: Any, *, maximum: float = 1) -> float:
     return float(value)
 
 
-def _distribution(value: Any, support: set[str], tolerance: float) -> dict[str, float]:
+def _distribution(
+    value: Any, support: set[str], tolerance: float, *, check_sum: bool = True
+) -> dict[str, float]:
     if not isinstance(value, dict) or set(value) != support:
         raise ValueError("invalid_distribution_support")
     probabilities = {key: _number(probability) for key, probability in value.items()}
-    if not math.isclose(sum(probabilities.values()), 1, rel_tol=0, abs_tol=tolerance):
+    if check_sum and not math.isclose(math.fsum(probabilities.values()), 1, rel_tol=0, abs_tol=tolerance):
         raise ValueError("invalid_distribution_sum")
     return probabilities
+
+
+def _score_precision(score: float, probabilities: dict[str, float], validation: dict) -> dict | None:
+    """Check exact values first, then joint feasibility of rounded wire values.
+
+    Some service responses expose scores and probabilities rounded separately to
+    two decimals. Their displayed mean need not equal their displayed score.
+    For quantized responses only, seek a probability vector inside the displayed
+    rounding intervals, summing to one, whose mean can round to the shown score.
+    A box intersected with the probability simplex is convex, so the achievable
+    mean is the entire interval between these greedily computed extrema.
+    Original scores and distributions are never replaced or normalized.
+    """
+    displayed_sum = math.fsum(probabilities.values())
+    displayed_mean = math.fsum(int(level) * probability for level, probability in probabilities.items())
+    valid_sum = math.isclose(
+        displayed_sum, 1, rel_tol=0, abs_tol=validation["probability_sum_absolute_tolerance"]
+    )
+    valid_mean = math.isclose(
+        score, displayed_mean, rel_tol=0, abs_tol=validation["expected_score_absolute_tolerance"]
+    )
+    if valid_sum and valid_mean:
+        return None
+    rejection = "invalid_distribution_sum" if not valid_sum else "score_distribution_mismatch"
+    scale = 10 ** validation["rounded_decimal_places"]
+    if not all(
+        math.isclose(value * scale, round(value * scale), rel_tol=0,
+                     abs_tol=validation["quantization_absolute_tolerance"])
+        for value in [score, *probabilities.values()]
+    ):
+        raise ValueError(rejection)
+    half_unit = .5 / scale
+    slack = validation["interval_feasibility_absolute_tolerance"]
+    levels = sorted(int(level) for level in probabilities)
+    lower = {level: max(0., probabilities[str(level)] - half_unit) for level in levels}
+    upper = {level: min(1., probabilities[str(level)] + half_unit) for level in levels}
+    lower_sum = math.fsum(lower.values())
+    if lower_sum > 1 + slack or math.fsum(upper.values()) < 1 - slack:
+        raise ValueError("invalid_distribution_sum")
+
+    def extreme(order: list[int]) -> float:
+        remaining = max(0., 1 - lower_sum)
+        weights = lower.copy()
+        for level in order:
+            addition = min(remaining, upper[level] - lower[level])
+            weights[level] += addition
+            remaining -= addition
+        return math.fsum(level * weight for level, weight in weights.items())
+
+    minimum_mean, maximum_mean = extreme(levels), extreme(list(reversed(levels)))
+    score_low, score_high = max(0., score - half_unit), min(float(max(levels)), score + half_unit)
+    if score_high < minimum_mean - slack or score_low > maximum_mean + slack:
+        raise ValueError("score_distribution_mismatch")
+    return {
+        "validation_version": validation["version"],
+        "reason": "feasible_two_decimal_rounding",
+        "review_note": "Separately rounded wire values are jointly feasible; raw values retained unchanged.",
+        "displayed_probability_sum": displayed_sum,
+        "displayed_probability_mean": displayed_mean,
+        "feasible_mean_interval": [minimum_mean, maximum_mean],
+        "reported_score_interval": [score_low, score_high],
+    }
 
 
 def _safe_diagnostic(value: Any) -> Any:
@@ -92,6 +156,7 @@ def validate_response(raw: Any, questions: dict, model: str, state: dict | None 
     validation = rubric["validation"]
     tolerance = validation["probability_sum_absolute_tolerance"]
     diagnostics: dict[str, Any] = {}
+    precision_notes: dict[str, dict] = {}
     factors: dict[str, Factor] = {}
     returned = raw.get("model") if isinstance(raw, dict) else None
     usage: dict[str, int | None] = {}
@@ -132,19 +197,19 @@ def validate_response(raw: Any, questions: dict, model: str, state: dict | None 
                 if set(answer) != {"type", "score", "confidence", "probabilities", "legend"}:
                     raise ValueError("invalid_score_fields")
                 support = {str(index) for index in range(len(spec["criteria"]))}
-                probabilities = _distribution(answer["probabilities"], support, tolerance)
+                probabilities = _distribution(answer["probabilities"], support, tolerance, check_sum=False)
                 legend = {str(index): criterion for index, criterion in enumerate(spec["criteria"])}
                 if answer["legend"] != legend:
                     raise ValueError("legend_mismatch")
                 value = _number(answer["score"], maximum=len(spec["criteria"]) - 1)
-                expected = sum(int(level) * probability for level, probability in probabilities.items())
-                if not math.isclose(value, expected, rel_tol=0, abs_tol=validation["expected_score_absolute_tolerance"]):
-                    raise ValueError("score_distribution_mismatch")
                 # The v1 Factor contract deliberately supports five-level Scores.
                 if len(spec["criteria"]) != 5 or not all(isinstance(item, str) for item in spec["criteria"]):
                     raise ValueError("unsupported_score_rubric")
                 factor_args.update(score=value, confidence=_number(answer["confidence"]),
                                    probabilities=probabilities, legend=legend)
+                precision_note = _score_precision(value, probabilities, validation)
+                if precision_note is not None:
+                    precision_notes[key] = precision_note
             elif spec["type"] == "choice":
                 if set(answer) != {"type", "choice", "confidence", "probabilities"}:
                     raise ValueError("invalid_choice_fields")
@@ -169,13 +234,16 @@ def validate_response(raw: Any, questions: dict, model: str, state: dict | None 
             reason = str(exc) if isinstance(exc, ValueError) and type(exc) is ValueError else "invalid_answer_schema"
             factors[key] = _unavailable(key, spec, reason)
             diagnostics.setdefault("invalid_answers", {})[key] = reason
-    if diagnostics:
+    has_errors = bool(diagnostics)
+    if has_errors:
         diagnostics["raw_response"] = _safe_diagnostic(raw)
+    if precision_notes:
+        diagnostics["numerical_precision_notes"] = precision_notes
     return ProviderResult(
         factors=factors,
         model_returned=returned,
         usage=usage,
-        error_category="invalid_response" if diagnostics else None,
+        error_category="invalid_response" if has_errors else None,
         diagnostics=diagnostics,
     )
 

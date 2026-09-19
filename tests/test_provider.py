@@ -252,3 +252,82 @@ async def test_mock_does_not_call_real_sdk(monkeypatch, state, questions):
     monkeypatch.setattr(typesafe_sdk, "AsyncTypeSafeClient", forbidden)
     result = await MockProvider().ask(state, questions)
     assert result.model_returned == "synthetic_hash_mock_v1"
+
+
+@pytest.mark.parametrize("probabilities,value", [
+    ([0, 0, 0, 1, 0], 2.98),
+    ([.02, .11, .32, .41, .13], 2.54),
+    ([.2, .2, .2, .2, .2], 2.02),
+    ([.2, .2, .2, .2, .21], 2.02),
+    ([.01, .25, .49, .25, .01], 2.0),
+])
+def test_jointly_feasible_rounded_wire_values_preserved(raw, questions, probabilities, value):
+    """Invented probability vectors exercise wire precision, not model performance."""
+    answer = raw["answers"]["relevance"]
+    answer["probabilities"] = {str(index): probability for index, probability in enumerate(probabilities)}
+    answer["score"] = value
+    original = deepcopy(raw)
+    result = validate_response(raw, questions, "jev-1.13.0")
+    assert result.error_category is None
+    factor = result.factors["relevance"]
+    assert factor.error is None
+    assert factor.score == value
+    assert factor.probabilities == answer["probabilities"]
+    assert raw == original
+    note = result.diagnostics["numerical_precision_notes"]["relevance"]
+    assert note["validation_version"] == "response_validation_v2"
+    assert note["reason"] == "feasible_two_decimal_rounding"
+    assert "raw values retained unchanged" in note["review_note"]
+
+
+@pytest.mark.parametrize("probabilities,value", [
+    ([0, 0, 0, 1, 0], 2.97),  # Inside a crude .055 allowance, outside the feasible mean interval.
+    ([.2, .2, .2, .2, .2], 2.04),
+    ([.2, .2, .2, .2, .2], 1.96),
+    ([.21, .21, .21, .21, .19], 2.0),  # Sum 1.03 cannot round from any probability vector.
+    ([.2, .2, .2, .2, .17], 2.0),
+    ([0, 0, 0, 0, .98], 3.99),  # Sum is within .025, but bounds at zero make it infeasible.
+])
+def test_rounded_values_outside_joint_feasibility_remain_unavailable(raw, questions, probabilities, value):
+    answer = raw["answers"]["relevance"]
+    answer["probabilities"] = {str(index): probability for index, probability in enumerate(probabilities)}
+    answer["score"] = value
+    result = validate_response(raw, questions, "jev-1.13.0")
+    assert result.error_category == "invalid_response"
+    assert result.factors["relevance"].score is None
+    assert result.factors["relevance"].error
+    assert result.factors["clarity"].score == 2.5
+    assert "relevance" not in result.diagnostics.get("numerical_precision_notes", {})
+
+
+@pytest.mark.parametrize("probabilities,value", [
+    ([.2, .2, .2, .2, .2], 2.019),
+    ([.2001, .2, .2, .2, .1999], 2.02),
+    ([.201, .201, .2, .2, .201], 2.0),
+])
+def test_extra_precision_never_gets_rounded_response_allowance(raw, questions, probabilities, value):
+    answer = raw["answers"]["relevance"]
+    answer["probabilities"] = {str(index): probability for index, probability in enumerate(probabilities)}
+    answer["score"] = value
+    result = validate_response(raw, questions, "jev-1.13.0")
+    assert result.error_category == "invalid_response"
+    assert result.factors["relevance"].score is None
+    assert "numerical_precision_notes" not in result.diagnostics
+
+
+def test_exact_distribution_gets_no_rounding_notice(raw, questions):
+    result = validate_response(raw, questions, "jev-1.13.0")
+    assert result.error_category is None
+    assert "numerical_precision_notes" not in result.diagnostics
+
+
+@pytest.mark.asyncio
+async def test_sdk_rounded_answer_remains_success_with_private_precision_note(monkeypatch, state, questions, raw):
+    raw["answers"]["relevance"]["probabilities"] = {str(index): .2 for index in range(5)}
+    raw["answers"]["relevance"]["score"] = 2.02
+    requests, _ = install_transport(monkeypatch, raw)
+    result = await TypeSafeProvider(Settings(spend_limit_usd=1)).ask(state, questions)
+    assert result.error_category is None
+    assert result.factors["relevance"].score == 2.02
+    assert result.diagnostics["numerical_precision_notes"]["relevance"]["reason"] == "feasible_two_decimal_rounding"
+    assert len(requests) == 1

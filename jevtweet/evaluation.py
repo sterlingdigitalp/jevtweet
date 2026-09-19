@@ -19,6 +19,7 @@ from sklearn.metrics import average_precision_score, brier_score_loss, log_loss,
 
 from .contracts import canonical, digest, now, uid
 from .storage import Store
+from .settings import Settings
 
 CONFIG = json.loads((Path(__file__).parent / "config/evaluation_v1.json").read_text())
 RUBRIC = json.loads((Path(__file__).parent / "config/rubric_v1.json").read_text())
@@ -26,6 +27,7 @@ SEMANTIC_NAMES = [x for x in RUBRIC["profiles"]["text_core_v1"]]
 METADATA_NAMES = ["log_followers", "log_baseline_views", "log_baseline_count"]
 METHODS = ["constant", "direct_jev", "editorial", "metadata_only", "jev_plus_metadata", "jev_only"]
 SPLITS = ("train", "selection", "calibration", "test")
+SUPPORTED_SCHEMA = "1"
 
 
 def _date(value: str | datetime) -> datetime:
@@ -45,6 +47,20 @@ def _key(candidate: dict) -> str:
 
 def _log(value: Any) -> float | None:
     return math.log1p(value) if _finite(value) and value >= 0 else None
+
+
+def _run_signature_valid(candidate: dict, judgment: dict, run: dict) -> bool:
+    request = run.get("request", {})
+    if (request.get("candidate") != candidate or run.get("judgment_id") != judgment.get("judgment_id")
+            or request.get("execution_mode") != judgment.get("execution_mode")
+            or request.get("profile_id") != judgment.get("profile_id")
+            or request.get("audience_id") != judgment.get("audience_id")
+            or not isinstance(run.get("state"), dict) or not isinstance(run.get("questions"), dict)):
+        return False
+    fingerprint = digest({"state": run["state"], "questions": run["questions"], "rubric": RUBRIC,
+                          "model": judgment.get("model_requested"), "sdk": judgment.get("sdk_version"),
+                          "profile": judgment.get("profile_id"), "mode": judgment.get("execution_mode")})
+    return judgment.get("input_hash") == fingerprint
 
 
 def _valid_window(candidate: dict, outcome: dict, definition: dict) -> bool:
@@ -162,6 +178,8 @@ def _feature_row(candidate: dict, context: dict, judgment: dict, label: dict, st
             "execution_mode": judgment["execution_mode"], "profile_id": judgment["profile_id"],
             "audience_version": judgment["audience_version"], "audience_id": judgment.get("audience_id"),
             "rubric_version": judgment["rubric_version"], "model_requested": judgment.get("model_requested"),
+            "schema_version": judgment.get("schema_version", SUPPORTED_SCHEMA),
+            "rubric_hash": judgment.get("provenance", {}).get("rubric_hash"),
             "model_returned": judgment.get("model_returned"), "reference_set_hash": judgment.get("reference_set_hash"),
             "references": context.get("references", []), "synthetic": bool(candidate.get("synthetic")),
             "sampling_provenance": candidate.get("provenance", "unknown"), "state": state}
@@ -193,6 +211,10 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
             exclusions.append({"key": key, "reason": "missing_judgment_or_prediction_context"})
             continue
         context = run["request"]["context"]
+        if any(record.get("schema_version", SUPPORTED_SCHEMA) != SUPPORTED_SCHEMA
+               for record in (candidate, judgment, run["request"], context)):
+            exclusions.append({"key": key, "reason": "unsupported_record_schema"})
+            continue
         label = label_candidate(candidate, context, candidates, outcomes, task=task)
         labels.append(dict(label, key=key))
         if label["status"] != "eligible":
@@ -203,6 +225,17 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
             continue
         if not synthetic and judgment.get("execution_mode") != "live":
             exclusions.append({"key": key, "reason": "mock_cannot_establish_real_predictive_evidence"})
+            continue
+        if not synthetic and (judgment.get("model_requested") != Settings.model or judgment.get("model_returned") != Settings.model):
+            exclusions.append({"key": key, "reason": "pinned_model_identity_mismatch"})
+            continue
+        if (judgment.get("rubric_version") != RUBRIC["version"]
+                or judgment.get("provenance", {}).get("rubric_hash") != digest(RUBRIC)
+                or judgment.get("profile_id") not in RUBRIC["profiles"]):
+            exclusions.append({"key": key, "reason": "unverified_rubric_signature"})
+            continue
+        if not _run_signature_valid(candidate, judgment, run):
+            exclusions.append({"key": key, "reason": "prediction_run_lineage_mismatch"})
             continue
         factors = judgment.get("factors", {})
         direct = factors.get("overall", factors.get("direct_overall", {})).get("score")
@@ -215,7 +248,8 @@ def build_dataset(store: Store, *, task: str = "breakout_48h_v1", synthetic: boo
         rows.append(_feature_row(candidate, context, judgment, label, run.get("state")))
     if len(rows) > max_rows:
         raise ValueError(f"Eligible dataset exceeds explicit row limit {max_rows}; narrow the corpus, do not silently subsample")
-    signatures = Counter((r["profile_id"], r["audience_id"], r["audience_version"], r["rubric_version"], r["model_requested"], r["execution_mode"]) for r in rows)
+    signatures = Counter((r["profile_id"], r["audience_id"], r["audience_version"], r["rubric_version"],
+                          r["rubric_hash"], r["schema_version"], r["model_requested"], r["model_returned"], r["execution_mode"]) for r in rows)
     if len(signatures) > 1:
         # A mixed audience/rubric cohort cannot support one coherent predictor.
         exclusions.extend({"key": r["key"], "reason": "mixed_judgment_configuration_select_a_coherent_corpus"} for r in rows)
@@ -452,6 +486,7 @@ def _synthetic_rows(count: int = 400) -> list[dict]:
                      "account_size": "under_1k" if followers < 1000 else "1k_to_10k" if followers < 10000 else "10k_plus",
                      "execution_mode": "mock", "profile_id": "text_core_v1", "audience_version": "1",
                      "audience_id": "production_ai_coding", "rubric_version": RUBRIC["version"], "model_requested": "synthetic-generator",
+                     "schema_version": SUPPORTED_SCHEMA, "rubric_hash": digest(RUBRIC),
                      "model_returned": "synthetic-generator", "references": [], "synthetic": True,
                      "sampling_provenance": "synthetic_generated_software_fixture", "state": None})
     return rows
@@ -465,6 +500,40 @@ def _save(store: Store, report: dict) -> dict:
     path.chmod(0o600)
     store.put("experiment", report["experiment_id"], report, replace=True)
     return report
+
+
+def _cohort_audit(partitions: dict[str, list[dict]]) -> dict:
+    """Freeze inspectable eligibility lineage for every used partition, including test."""
+    fields = ("key", "candidate_id", "schema_version", "rubric_version", "rubric_hash", "profile_id",
+              "audience_id", "audience_version", "model_requested", "model_returned", "execution_mode",
+              "sampling_provenance", "synthetic")
+    return {name: [{key: row.get(key) for key in fields} for row in partitions[name]] for name in SPLITS}
+
+
+def _frozen_payload(report: dict) -> dict:
+    return {"models": report["models"], "policy": report["promotion_policy"], "tier_boundaries": report["tier_boundaries"],
+            "features": report["feature_schema"], "task": report["task"], "dataset_hash": report["dataset_hash"],
+            "label_definition": report["label_definition"], "cohort_audit_hash": report["cohort_audit_hash"]}
+
+
+def _holdout_identity(row: dict) -> dict:
+    tokens = sorted(set(re.findall(r"\w+", row["text"].lower())))
+    return {"key": row["key"], "candidate_id": row["candidate_id"], "thread_id": row.get("thread_id"),
+            "content_hash": digest(tokens), "tokens": tokens}
+
+
+def _overlaps_holdout(identities: list[dict], prior: list[dict]) -> bool:
+    threshold = RUBRIC["policy"]["near_duplicate_jaccard"]
+    for row in identities:
+        for old in prior:
+            if (row["key"] == old.get("key") or row["candidate_id"] == old.get("candidate_id")
+                    or row["content_hash"] == old.get("content_hash")
+                    or (row.get("thread_id") and row["thread_id"] == old.get("thread_id"))):
+                return True
+            a, b = set(row["tokens"]), set(old.get("tokens", []))
+            if a and b and len(a & b) / len(a | b) >= threshold:
+                return True
+    return False
 
 
 def evaluate(store: Store, *, synthetic: bool = False, task: str = "breakout_48h_v1",
@@ -505,6 +574,8 @@ def evaluate(store: Store, *, synthetic: bool = False, task: str = "breakout_48h
         report["limitations"].append("Synthetic labels and features demonstrate software mechanics only; no Jev predictive performance is measured.")
     partitions, manifest = split_dataset(rows)
     report["split_manifest"] = manifest
+    report["cohort_audit"] = _cohort_audit(partitions)
+    report["cohort_audit_hash"] = digest(report["cohort_audit"])
     report["development_rows"] = [r for name in SPLITS[:-1] for r in partitions[name]]
     report["development_partitions"] = {name: partitions[name] for name in SPLITS[:-1]}
     issues = []
@@ -539,8 +610,7 @@ def evaluate(store: Store, *, synthetic: bool = False, task: str = "breakout_48h
             model["calibrator"] = _calibrate(model, calibration)
     report["models"] = models
     report["selection"] = tuning
-    frozen_hash = digest({"models": models, "policy": report["promotion_policy"], "tier_boundaries": report["tier_boundaries"],
-                          "features": report["feature_schema"], "task": task})
+    frozen_hash = digest(_frozen_payload(report))
     holdout_key = holdout_id or digest({"task": task, "keys": [r["key"] for r in test]})
     report["holdout_id"] = holdout_key
     report["frozen_candidate_hash"] = frozen_hash
@@ -550,13 +620,20 @@ def evaluate(store: Store, *, synthetic: bool = False, task: str = "breakout_48h
         with store.transaction() as db:
             already = db.execute("SELECT body FROM records WHERE kind='holdout' AND id=?", (holdout_key,)).fetchone()
             used = db.execute("SELECT body FROM records WHERE kind='holdout'").fetchall()
-            seen = set(k for record in used for k in json.loads(record[0]).get("test_keys", []))
-            if already or any(r["key"] in seen for r in test):
+            prior = [json.loads(record[0]) for record in used]
+            identities = [_holdout_identity(row) for row in test]
+            seen = set(k for record in prior for k in record.get("test_keys", []))
+            old_identities = [identity for record in prior for identity in record.get("test_identities", [])]
+            # Legacy registries have only versioned keys. Still block a version
+            # bump by deriving their original candidate identity conservatively.
+            seen_candidates = {key.rsplit(":", 1)[0] for key in seen}
+            if already or any(r["key"] in seen or r["candidate_id"] in seen_candidates for r in test) or _overlaps_holdout(identities, old_identities):
                 report["status"] = "holdout_already_consumed"
                 report["not_ready_reasons"] = ["Final-test rows were previously opened. Use a new untouched or prospective holdout; do not tune against the same test."]
                 report["promotion"] = {"eligible": False, "reasons": ["holdout_reuse"]}
             else:
                 record = {"holdout_id": holdout_key, "experiment_id": report["experiment_id"], "test_keys": [r["key"] for r in test],
+                          "test_identities": identities,
                           "candidate_hash": frozen_hash, "consumed_at": now().isoformat(), "policy_hash": report["promotion_policy_hash"]}
                 db.execute("INSERT INTO records(kind,id,body,created_at) VALUES('holdout',?,?,?)", (holdout_key, canonical(record), now().isoformat()))
         if report["status"] == "holdout_already_consumed":
@@ -605,9 +682,26 @@ def _promotion_gates(report: dict) -> dict:
             reasons.append(reason)
     require(not report["synthetic"], "synthetic_evidence_cannot_promote")
     require(report["representative_sampling_attested"] and bool(report["comparison_population"].strip()), "representative_sampling_and_comparison_population_required")
-    rows = report.get("development_rows", [])
-    require(all(r.get("sampling_provenance", "unknown") not in ("manual", "unknown", "winners_only", "balanced") for r in rows), "sampling_provenance_must_be_documented")
-    require(all(r["execution_mode"] == "live" and r["model_returned"] == r["model_requested"] for r in rows), "verified_live_pinned_model_required")
+    cohort = report.get("cohort_audit", {})
+    manifest = report.get("split_manifest", {}).get("partitions", {})
+    coherent = (set(cohort) == set(SPLITS) and digest(cohort) == report.get("cohort_audit_hash")
+                and all([r.get("key") for r in cohort[name]] == manifest.get(name) for name in SPLITS))
+    require(coherent, "full_frozen_cohort_audit_required")
+    rows = [r for name in SPLITS for r in cohort.get(name, [])]
+    def representative(row):
+        source = str(row.get("sampling_provenance") or "unknown").strip().lower()
+        return source not in ("manual", "unknown") and not re.search(r"winners?[_ -]?only|balanced", source)
+    require(bool(rows) and all(representative(r) for r in rows), "sampling_provenance_must_be_documented")
+    require(bool(rows) and all(r.get("execution_mode") == "live" and r.get("model_returned") == Settings.model
+                              and r.get("model_requested") == Settings.model for r in rows), "verified_live_pinned_model_required")
+    require(bool(rows) and all(r.get("schema_version") == SUPPORTED_SCHEMA and r.get("rubric_version") == RUBRIC["version"]
+                              and r.get("rubric_hash") == digest(RUBRIC) for r in rows), "verified_schema_and_rubric_required")
+    require(bool(rows) and not any(r.get("synthetic") for r in rows), "full_cohort_real_evidence_required")
+    try:
+        frozen_intact = digest(_frozen_payload(report)) == report.get("frozen_candidate_hash")
+    except KeyError:
+        frozen_intact = False
+    require(frozen_intact, "frozen_candidate_integrity_required")
     require(report["eligibility"]["eligible_rows"] >= p["minimum_eligible_rows"], "minimum_eligible_rows")
     target, baseline = report["metrics"]["jev_plus_metadata"], report["metrics"]["metadata_only"]
     require(target["rows"] >= p["minimum_test_rows"], "minimum_test_rows")
@@ -642,15 +736,46 @@ def promote(store: Store, experiment_id: str, *, approved_by: str, rationale: st
                 "rationale": rationale, "accepted": bool(gates["eligible"]), "gate_failures": gates["reasons"]}
     report["audit"].append(decision)
     report["promotion"] = dict(gates, approved=decision["accepted"], approval=decision)
+    report["forecast_available"] = bool(decision["accepted"])
     if decision["accepted"]:
         first = report["development_rows"][0]
         predictor = {"predictor_id": experiment_id, "model": report["models"]["jev_plus_metadata"], "task": report["task"],
                      "tier_boundaries": report["tier_boundaries"], "comparison_population": report["comparison_population"],
-                     "configuration": {k: first[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "model_requested")},
+                     "configuration": {k: first[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "rubric_hash", "schema_version", "model_requested")},
+                     "feature_schema": report["feature_schema"], "dataset_hash": report["dataset_hash"], "holdout_id": report["holdout_id"],
                      "approval": decision, "frozen_candidate_hash": report["frozen_candidate_hash"]}
         store.put("predictor", experiment_id, predictor)
         report["forecast_available"] = True
     return _save(store, report)
+
+
+def _predictor_lineage_errors(store: Store, predictor: dict) -> list[str]:
+    """A boolean stored on a predictor is insufficient authorization to forecast."""
+    report = store.get("experiment", predictor.get("predictor_id", ""))
+    if not report or report.get("status") != "evaluated" or not report.get("promotion", {}).get("approved"):
+        return ["Predictor has no approved originating evaluation"]
+    try:
+        if not _promotion_gates(report)["eligible"]:
+            return ["Originating evaluation no longer satisfies frozen evidence gates"]
+        if (predictor.get("frozen_candidate_hash") != report.get("frozen_candidate_hash")
+                or predictor.get("model") != report["models"]["jev_plus_metadata"]
+                or predictor.get("feature_schema") != report["feature_schema"]
+                or predictor.get("dataset_hash") != report["dataset_hash"]
+                or predictor.get("tier_boundaries") != report["tier_boundaries"]
+                or predictor.get("task") != report["task"]
+                or predictor.get("comparison_population") != report["comparison_population"]
+                or predictor.get("approval") != report["promotion"].get("approval")):
+            return ["Predictor artifact differs from the approved frozen evaluation"]
+        first = report["development_rows"][0]
+        expected_configuration = {k: first[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "rubric_hash", "schema_version", "model_requested")}
+        if predictor.get("configuration") != expected_configuration:
+            return ["Predictor configuration differs from the approved cohort"]
+        holdout = store.get("holdout", predictor.get("holdout_id", ""))
+        if not holdout or holdout.get("experiment_id") != report["experiment_id"] or holdout.get("candidate_hash") != report["frozen_candidate_hash"]:
+            return ["Predictor holdout lineage is unavailable or inconsistent"]
+    except (KeyError, TypeError, ValueError):
+        return ["Predictor or evaluation artifact has an unsupported schema"]
+    return []
 
 
 def predict(store: Store, judgment_id: str, *, predictor_id: str | None = None) -> dict:
@@ -659,6 +784,9 @@ def predict(store: Store, judgment_id: str, *, predictor_id: str | None = None) 
     unavailable = {"mode": "forecast", "available": False, "breakout_probability": None, "score_1_to_5": None, "calibration_status": "not_established"}
     if not predictor or not predictor.get("approval", {}).get("accepted"):
         return dict(unavailable, reason="No evidence-qualified, manually approved forecast predictor")
+    lineage_errors = _predictor_lineage_errors(store, predictor)
+    if lineage_errors:
+        return dict(unavailable, reason="; ".join(lineage_errors))
     judgment = store.get("judgment", judgment_id)
     if not judgment:
         raise ValueError("Judgment does not exist")
@@ -666,13 +794,20 @@ def predict(store: Store, judgment_id: str, *, predictor_id: str | None = None) 
         return dict(unavailable, reason="Forecast requires a complete live judgment")
     if judgment.get("model_returned") != judgment.get("model_requested"):
         return dict(unavailable, reason="Forecast requires the verified pinned model identity")
-    if any(judgment.get(k) != v for k, v in predictor["configuration"].items()):
+    actual_configuration = dict(judgment, rubric_hash=judgment.get("provenance", {}).get("rubric_hash"))
+    if any(actual_configuration.get(k) != v for k, v in predictor["configuration"].items()):
         return dict(unavailable, reason="Judgment profile, audience, rubric or pinned model differs from the evaluated predictor")
     runs = [r for r in store.list("run") if r.get("judgment_id") == judgment_id]
     if not runs:
         return dict(unavailable, reason="Prediction context is unavailable")
     request = runs[0]["request"]
     candidate, context = request["candidate"], request["context"]
+    if any(record.get("schema_version", SUPPORTED_SCHEMA) != SUPPORTED_SCHEMA for record in (candidate, request, context)):
+        return dict(unavailable, reason="Prospective record schema differs from the evaluated feature contract")
+    if _key(candidate) != _key(judgment) or store.get("candidate", _key(candidate)) != candidate:
+        return dict(unavailable, reason="Prospective candidate lineage differs from its immutable judgment input")
+    if not _run_signature_valid(candidate, judgment, runs[0]):
+        return dict(unavailable, reason="Prospective run fingerprint differs from the evaluated schema and rubric")
     if candidate.get("synthetic") or candidate.get("distribution") != "organic":
         return dict(unavailable, reason="Forecast population requires real candidates with explicitly organic distribution")
     if any(not _finite(judgment.get("factors", {}).get(name, {}).get("score")) for name in SEMANTIC_NAMES):
@@ -702,7 +837,7 @@ def predict(store: Store, judgment_id: str, *, predictor_id: str | None = None) 
 
 
 def forecast_status(store: Store) -> dict:
-    predictors = [p for p in store.list("predictor") if p.get("approval", {}).get("accepted")]
+    predictors = [p for p in store.list("predictor") if p.get("approval", {}).get("accepted") and not _predictor_lineage_errors(store, p)]
     if predictors:
         p = predictors[-1]
         return {"available": True, "predictor_id": p["predictor_id"], "label_definition_id": p["task"],

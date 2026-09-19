@@ -82,12 +82,19 @@ def attach_data(store):
         store.put("outcome", outcome["observation_id"], outcome)
     j = {"judgment_id": "judgment", "candidate_id": "target", "candidate_version": 1, "created_at": c["published_at"],
          "status": "scored", "score_continuous": 3.5, "score_1_to_5": 4, "execution_mode": "live", "profile_id": "text_core_v1",
-         "audience_id": "production_ai_coding", "audience_version": "1", "rubric_version": "rubric_v1",
+         "audience_id": "production_ai_coding", "audience_version": "1", "rubric_version": ev.RUBRIC["version"],
+         "schema_version": "1", "provenance": {"rubric_hash": ev.digest(ev.RUBRIC)},
          "model_requested": "jev-1.13.0", "model_returned": "jev-1.13.0",
          "factors": {name: {"score": 3, "assessability": "assessable"} for name in ev.SEMANTIC_NAMES + ["overall"]}}
     context["historical"] = {"followers": 999999, "observed_at": outcomes[-1]["observed_at"], "available_at": outcomes[-1]["available_at"]}
+    run = {"judgment_id": "judgment", "request": {"candidate": c, "context": context, "execution_mode": "live",
+           "profile_id": j["profile_id"], "audience_id": j["audience_id"]}, "state": {"candidate": {"text": c["text"]}},
+           "questions": ev.RUBRIC["questions"]}
+    j["sdk_version"] = "0.7.0"
+    j["input_hash"] = ev.digest({"state": run["state"], "questions": run["questions"], "rubric": ev.RUBRIC,
+                                "model": j["model_requested"], "sdk": j["sdk_version"], "profile": j["profile_id"], "mode": j["execution_mode"]})
     store.put("judgment", "judgment", j)
-    store.put("run", "judgment", {"judgment_id": "judgment", "request": {"candidate": c, "context": context}})
+    store.put("run", "judgment", run)
     return j
 
 
@@ -180,3 +187,111 @@ def test_undefined_metrics_and_fold_local_preprocessing():
     ev.raw_predict(model, rows[20:])
     assert model["means"] == mean_before
     assert all(math.isfinite(x) for x in model["medians"])
+
+
+@pytest.mark.parametrize("mutation,reason", [
+    ({"model_returned": "jev-latest"}, "pinned_model_identity_mismatch"),
+    ({"model_requested": "unvalidated-model", "model_returned": "unvalidated-model"}, "pinned_model_identity_mismatch"),
+    ({"rubric_version": "unknown-version"}, "unverified_rubric_signature"),
+    ({"provenance": {"rubric_hash": "wrong"}}, "unverified_rubric_signature"),
+    ({"schema_version": "future-v2"}, "unsupported_record_schema"),
+    ({"input_hash": "unrelated-run"}, "prediction_run_lineage_mismatch"),
+])
+def test_eligibility_rejects_unverified_model_rubric_schema(tmp_path, mutation, reason):
+    store = Store(tmp_path)
+    judgment = attach_data(store)
+    judgment.update(mutation)
+    store.put("judgment", "judgment", judgment, replace=True)
+    result = ev.eligibility(store)
+    assert result["eligible_rows"] == 0 and result["exclusion_counts"][reason] == 1
+
+
+@pytest.mark.parametrize("field,value,reason", [
+    ("sampling_provenance", "winners_only", "sampling_provenance_must_be_documented"),
+    ("sampling_provenance", "balanced", "sampling_provenance_must_be_documented"),
+    ("sampling_provenance", "manual", "sampling_provenance_must_be_documented"),
+    ("sampling_provenance", "unknown", "sampling_provenance_must_be_documented"),
+    ("model_returned", "jev-latest", "verified_live_pinned_model_required"),
+    ("rubric_hash", "wrong-signature", "verified_schema_and_rubric_required"),
+    ("schema_version", "v2", "verified_schema_and_rubric_required"),
+    ("synthetic", True, "full_cohort_real_evidence_required"),
+])
+def test_promotion_checks_test_lineage_not_only_development(synthetic_report, field, value, reason):
+    _, original = synthetic_report
+    report = deepcopy(original)
+    report["synthetic"] = False
+    for partition in report["cohort_audit"].values():
+        for row in partition:
+            row.update(sampling_provenance="prospective_enrollment_v1", execution_mode="live", synthetic=False,
+                       model_requested=ev.Settings.model, model_returned=ev.Settings.model)
+    report["cohort_audit_hash"] = ev.digest(report["cohort_audit"])
+    report["frozen_candidate_hash"] = ev.digest(ev._frozen_payload(report))
+    assert reason not in ev._promotion_gates(report)["reasons"]
+    report["cohort_audit"]["test"][0][field] = value
+    report["cohort_audit_hash"] = ev.digest(report["cohort_audit"])
+    report["frozen_candidate_hash"] = ev.digest(ev._frozen_payload(report))
+    assert reason in ev._promotion_gates(report)["reasons"]
+
+
+def test_cohort_audit_cannot_omit_test_or_change_after_freeze(synthetic_report):
+    _, original = synthetic_report
+    report = deepcopy(original)
+    report["cohort_audit"]["test"] = []
+    assert "full_frozen_cohort_audit_required" in ev._promotion_gates(report)["reasons"]
+    report = deepcopy(original)
+    report["models"]["jev_plus_metadata"]["coefficients"][0] += .5
+    assert "frozen_candidate_integrity_required" in ev._promotion_gates(report)["reasons"]
+
+
+def test_holdout_identity_blocks_rekey_version_and_near_duplicate():
+    row = ev._synthetic_rows(1)[0]
+    old = ev._holdout_identity(row)
+    assert ev._overlaps_holdout([ev._holdout_identity(dict(row, key="synthetic-0:2"))], [old])
+    rekeyed = dict(row, key="new-id:1", candidate_id="new-id")
+    assert ev._overlaps_holdout([ev._holdout_identity(rekeyed)], [old])
+    rekeyed["text"] += " extra"
+    assert ev._overlaps_holdout([ev._holdout_identity(rekeyed)], [old])
+    unrelated = ev._synthetic_rows(2)[1]
+    assert not ev._overlaps_holdout([ev._holdout_identity(unrelated)], [old])
+
+
+def test_forged_approval_without_originating_experiment_cannot_enable_forecast(tmp_path):
+    store = Store(tmp_path)
+    store.put("predictor", "orphan", {"predictor_id": "orphan", "approval": {"accepted": True}})
+    result = ev.predict(store, "unused")
+    assert not result["available"] and "originating evaluation" in result["reason"]
+    assert not ev.forecast_status(store)["available"]
+
+
+@pytest.mark.parametrize("field,value", [("schema_version", "2"), ("rubric_version", "future-rubric"),
+                                         ("rubric_hash", "changed-criteria"), ("model_requested", "jev-latest")])
+def test_prospective_configuration_mismatch_is_unavailable(tmp_path, monkeypatch, field, value):
+    store = Store(tmp_path)
+    judgment = attach_data(store)
+    configuration = {k: judgment[k] for k in ("profile_id", "audience_id", "audience_version", "rubric_version", "schema_version", "model_requested")}
+    configuration["rubric_hash"] = judgment["provenance"]["rubric_hash"]
+    store.put("predictor", "unit-test", {"predictor_id": "unit-test", "approval": {"accepted": True}, "configuration": configuration})
+    # Isolate prospective configuration checks; separate tests exercise gates
+    # and originating-artifact validation. This is not a promotable experiment.
+    monkeypatch.setattr(ev, "_predictor_lineage_errors", lambda *args: [])
+    if field == "rubric_hash":
+        judgment["provenance"][field] = value
+    else:
+        judgment[field] = value
+    store.put("judgment", "judgment", judgment, replace=True)
+    result = ev.predict(store, "judgment")
+    assert not result["available"] and result["breakout_probability"] is None
+
+
+def test_changed_model_artifact_rejected_against_origin(synthetic_report, tmp_path, monkeypatch):
+    _, original = synthetic_report
+    store = Store(tmp_path)
+    report = deepcopy(original)
+    report["promotion"] = {"approved": True, "approval": {"accepted": True}}
+    store.put("experiment", report["experiment_id"], report)
+    # Isolate artifact equality from the independent evidence-gate checks.
+    monkeypatch.setattr(ev, "_promotion_gates", lambda *args: {"eligible": True})
+    predictor = {"predictor_id": report["experiment_id"], "frozen_candidate_hash": report["frozen_candidate_hash"],
+                 "model": deepcopy(report["models"]["jev_plus_metadata"])}
+    predictor["model"]["coefficients"][0] += .1
+    assert "differs from the approved frozen evaluation" in ev._predictor_lineage_errors(store, predictor)[0]

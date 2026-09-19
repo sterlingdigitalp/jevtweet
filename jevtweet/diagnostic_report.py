@@ -102,6 +102,9 @@ def _verify_freeze(directory: Path) -> tuple[dict, dict, dict, dict[str, Judgmen
     ):
         if _sha(directory / name) != expected:
             raise ValueError(f"Frozen protocol binding changed: {name}")
+    from .diagnostics import _verify_additional_bindings
+
+    _verify_additional_bindings(directory, protocol)
     authorization = _json(directory / "authorization.json")
     approved = DiagnosticAuthorization.model_validate(authorization)
     if digest(authorization) != freeze.get("authorization_hash"):
@@ -410,6 +413,44 @@ thresholds and holdout protections remain in force.
 """
 
 
+def _grouped_diagnostics(table, comparisons, groups):
+    """Frozen source strata, including all exclusions and execution statuses."""
+    if set(groups) != {row["candidate_id"] for row in table}:
+        raise ValueError("Frozen diagnostic grouping must cover every source target")
+    result = {}
+    for fields in (("panel",), ("account",), ("month",), ("panel", "account", "month")):
+        partitions = {}
+        for row in table:
+            group = groups[row["candidate_id"]]
+            if set(group) != {"panel", "account", "month"} or any(
+                not isinstance(v, str) for v in group.values()
+            ):
+                raise ValueError("Invalid frozen diagnostic grouping")
+            key = tuple(group[field] for field in fields)
+            partitions.setdefault(key, []).append(row)
+        strata = []
+        for key, rows in sorted(partitions.items()):
+            ids = {row["candidate_id"] for row in rows}
+            compared = [row for row in comparisons if row["candidate_id"] in ids]
+            strata.append(
+                {
+                    "group": dict(zip(fields, key, strict=True)),
+                    "coverage": {
+                        "all_targets": len(rows),
+                        "planned": sum(row["cohort_status"] == "initial" for row in rows),
+                        "status_counts": dict(Counter(row["status"] for row in rows)),
+                        "fully_scored": len(compared),
+                    },
+                    "associations": {
+                        f"{x}_vs_views": _association(compared, x, "views") for x in ("composite", "direct")
+                    },
+                    "disagreements": _disagreements(compared),
+                }
+            )
+        result["_".join(fields)] = strata
+    return result
+
+
 def write_diagnostic_report(directory: Path) -> dict:
     """Verify a private live freeze, then write private descriptive artifacts.
 
@@ -562,6 +603,34 @@ def write_diagnostic_report(directory: Path) -> dict:
         "predictive_accuracy_established": False,
         "calibrated_probability_established": False,
     }
+    plan = protocol.get("diagnostic_plan")
+    if plan:
+        if plan.get("version") != "archive_panels_v1" or plan != manifest.get("diagnostic_plan"):
+            raise ValueError("Diagnostic panel plan differs from the frozen manifest")
+        report["source_inventory"] = {
+            "target_records": len(table),
+            "metrics_only_orphan_records": plan.get("metrics_only_orphan_count", 0),
+            "orphan_policy": "No delivered target text; preserved in immutable source bundle, never judged.",
+        }
+        report["grouped_diagnostics"] = _grouped_diagnostics(
+            table, comparison_rows, plan["groups_by_candidate"]
+        )
+        report["associations"] = {}
+        report["disagreements"] = {
+            "rule": "No pooled panel comparison; inspect frozen panel/account/month strata in grouped_diagnostics."
+        }
+        report["construct_hypothesis"] = (
+            "No source-specific explanation is established by these descriptive comparisons. Context, fixed-audience mismatch, exposure and chance remain competing hypotheses."
+        )
+        report["limitations"] = [
+            item for item in _LIMITATIONS if not item.startswith("Publication times")
+        ] + [
+            "Supplied timestamps are unverified collection claims; inputs assess text observed at ingestion, not pre-publication predictions.",
+            "Quote-source media completeness may remain unknown for supplied-text-only cases; panel accounting retains every limitation.",
+            "Account/month aggregate strata combine compositions; consult separate panels and joint strata before interpreting differences.",
+        ]
+        for row in table:
+            row["group"] = plan["groups_by_candidate"][row["candidate_id"]]
     lines = [
         "# Private development-only diagnostic report",
         "",
@@ -598,12 +667,47 @@ def write_diagnostic_report(directory: Path) -> dict:
         "",
         report["construct_hypothesis"],
         "",
-        *[f"- {limitation}" for limitation in _LIMITATIONS],
+        *[f"- {limitation}" for limitation in report["limitations"]],
         "",
         "Remaining data-collection requirements are in collection_requirements.md. "
         "No predictor is trained or promoted by this report.",
         "",
     ]
+    if plan:
+        lines.extend(
+            [
+                "",
+                "## Frozen source strata",
+                "",
+                "Each panel, account, month and joint stratum is reported separately below. Small/constant groups are explicitly undefined.",
+                "",
+            ]
+        )
+        for dimension, strata in report["grouped_diagnostics"].items():
+            lines.extend(
+                [
+                    f"### {dimension}",
+                    "",
+                    "| Group | Targets | Planned | Fully scored | Composite vs views | Direct vs views |",
+                    "| --- | ---: | ---: | ---: | --- | --- |",
+                ]
+            )
+            for stratum in strata:
+
+                def display(key):
+                    relation = stratum["associations"][key]
+                    return (
+                        f"{relation['spearman']}; n={relation['n']}"
+                        if relation["spearman"] is not None
+                        else "undefined: " + ", ".join(relation["undefined_reasons"])
+                    )
+
+                coverage_row = stratum["coverage"]
+                label = canonical(stratum["group"]).replace("|", "\\|")
+                lines.append(
+                    f"| {label} | {coverage_row['all_targets']} | {coverage_row['planned']} | {coverage_row['fully_scored']} | {display('composite_vs_views')} | {display('direct_vs_views')} |"
+                )
+            lines.append("")
     _write(directory / "diagnostic_table.jsonl", "".join(canonical(row) + "\n" for row in table))
     _write(directory / "diagnostic_report.json", canonical(report) + "\n")
     _write(directory / "diagnostic_report.md", "\n".join(lines))

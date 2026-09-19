@@ -210,3 +210,46 @@ application. Newly collected representative, timestamped, independent-author dat
 and an untouched later cohort are still required; the 5,000-row cap and promotion
 thresholds remain unchanged. Keep all actual exports, reports, protocol files and
 judgments out of Git. Tests use original invented records only.
+
+
+## Private archive diagnostics
+
+For a supplied versioned ZIP, declare each input file's role in a private selection
+JSON (`files` maps manifest-relative paths to `primary_content`, `metrics`,
+`gapfill_content`, `gapfill_metrics`, historical content/metrics/summary, context,
+summary or ancillary roles). Primary content wins over equivalent gapfill duplicates;
+substantive target/context differences remain quarantined. Dedicated context requires
+an exact source identity. Declare source priorities and justified version/path
+overrides in a private context policy; overrides never waive missing text/media/time
+limitations. Historical copies are preserved without becoming target additions.
+
+```sh
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/jevtweet diagnostic-prepare-archive /path/to/private/source.zip private/corpora/archive_v1 --selection /path/to/private/selection.json --context-policy /path/to/private/context_policy.json
+```
+
+The supplied manifest and archive remain immutable. Every payload checksum/size is
+verified; a stale self-manifest entry is recorded explicitly rather than repaired in
+place. Derived manifests exclude their own bytes. Metrics join by post ID from JSONL;
+blank summary cells remain missing, views never become impressions, duplicate
+observation-time claims do not imply separate observations or growth. Metrics-only
+IDs stay unjudgeable. All target, context, historical and orphan identities are
+permanently restricted to diagnostics.
+
+Panel A contains eligible originals without indicated media. Panel B separately
+contains eligible quotes with resolved supplied-text context. Unknown source media
+completeness is retained as a limitation; known material media gaps, partial articles,
+conflicts and absent text remain quarantined. This is an assessment of text observed
+at ingestion. Claimed publication times are private provenance, never fabricated
+pre-publication availability. Quoted replies retain their exact ID and text; a
+separate parent is labeled as additional context. Continuations retain their own
+timestamps and are not concatenated into a quoted source. Collector objects and nested
+outcome metadata cannot enter provider state; authentic numbers in text remain intact.
+
+Inspect the frozen panel/source manifests, version decisions, exclusions, requests,
+input hashes, order and reservation estimate before requesting new protocol-specific
+authorization. Use the existing `diagnostic-authorize`, `diagnostic-run`, then
+`diagnostic-report` workflow above. An earlier pilot's approval does not authorize a
+new protocol. Post-freeze reports retain panel/account/month and joint strata, with
+undefined small-group associations and complete failure/exclusion coverage. No pooled
+panel accuracy claim, predictor training, promotion or retrospective rubric tuning is
+performed. All supplied archives and source-specific reports belong outside Git.

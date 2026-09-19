@@ -2,6 +2,34 @@
 
 Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtweet`, branch `main`. Build identity is derived from Git; dirty working builds are identified in judgment lineage.
 
+## Private archive normalization — implemented and verified offline
+
+Preserved the supplied ZIP and earlier pilot without alteration. Root led integration and shared protocol/CLI boundaries; parallel workstreams owned archive normalization, context resolution and independent source/code verification. No new paid protocol is authorized. No live calls, predictor training, promotion or new predictive claims occurred in this pass.
+
+Implemented immutable archive/payload verification with explicit stale self-manifest discrepancy recording; source-role declarations and field-level version provenance; primary/gapfill identity deduplication; JSONL metric joins and fresh derived summaries/manifests; conservative source/context quarantine; separate original and quote panels; strict nested input allowlists; shared baseline preparation/cost/freeze/authorization. Every target and metrics-only orphan remains accounted for. Original text numbers are preserved; collector metrics, ranks, annotations and author statistics remain private sidecars. Quote replies retain exact identity, separate parents, and per-evidence timing. Claimed collection times do not become verified historical availability or fixed-window outcomes.
+
+The normalized inputs use the existing audience/profile, scoring implementation, questions, seeded ordering and bounded retry policy. Hash bindings include the immutable archive, source selection, context policy, normalized sidecars, panel membership and derived inputs. Post-freeze reports keep panel/account/month/joint strata separate, retain failures and exclusions, and do not silently pool panels. Source identities, inline quotes, parents, historical versions and metrics-only records receive permanent diagnostic restrictions. The original pilot's authorization cannot authorize a new protocol.
+
+Reproduced failures before repairs: missing archive/allowlist APIs; raw comma-separated and blank metric values bypassing normalized counts; inline quoted-source identities missing from permanent restrictions. Additional context regressions cover truncated-primary/full-gapfill conflicts, unsupported replies, partial article openings, media-type-only indications, separate parent identity, and future evidence. All now pass. Independent mutation testing confirms arbitrary collector outcome changes cannot change requests, fingerprints, panel membership or ordering.
+
+Verification commands:
+
+```sh
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/pytest -q
+.venv/bin/ruff check jevtweet tests scripts
+.venv/bin/ruff format --check jevtweet tests scripts
+.venv/bin/python scripts/check_public.py
+git diff --check
+npm run build --prefix frontend
+npm run format:check --prefix frontend
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 JEVTWEET_E2E_LIVE=0 npm test --prefix frontend
+JEVTWEET_E2E_URL=http://127.0.0.1:8197 JEVTWEET_E2E_LIVE=0 npm run test:integration --prefix frontend -- --workers=1
+```
+
+Backend suite: **364 passed, one opt-in live test skipped**; eight isolated browser tests and all four actual-backend/mock-provider integration workflows passed. The integration backend used a fresh disposable data/account directory, empty credentials and zero spending, matching normal CI. Frontend build/format and Python lint/format passed. The initial browser attempt hit sandbox loopback-bind `EPERM`; the same offline test passed with the necessary local-server permission. One upstream Starlette/AnyIO deprecation warning remains. Live tests were intentionally not run. Injected provider envelopes exercise mechanics only; they are not research evidence.
+
+Source-specific inventory, every inclusion/exclusion, source-version decisions, input order/hash, request costs and later execution authorization belong in private artifacts. Preparation must run from the clean committed implementation and stops at the new protocol-specific approval boundary. Remaining limitations: source authenticity, unknown media completeness, exact measurement windows, author history and representative sampling are not established. Partial, ambiguous or unavailable context remains quarantined; no further harvest is required for the prepared subset. No calibrated probability, predictive accuracy, generalization or causal claim is established. The original rubric, thresholds, evaluation cap and single-use holdout protections are unchanged.
+
 ## Authorized diagnostic execution — completed; results private
 
 Executed the owner's separately approved fixed protocol from clean commit `a507f3a4e2c676a9fe73ebc9368e6c05a1577f00`. Verified the bound approval, unchanged source/request/configuration hashes, pinned model/SDK, private identity restrictions and sufficient shared-account headroom before execution. Existing pilot and account spending controls remained active; no ledger was reset and the authorized ceiling was respected.

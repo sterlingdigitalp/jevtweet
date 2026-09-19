@@ -96,6 +96,14 @@ def parser():
     d.add_argument("--seed", type=int, default=20260918)
     d.add_argument("--attribution-assumption")
     d = sub.add_parser(
+        "diagnostic-prepare-archive", help="Offline private archive version resolution and separate panels"
+    )
+    d.add_argument("source", type=Path)
+    d.add_argument("directory", type=Path)
+    d.add_argument("--selection", type=Path, required=True)
+    d.add_argument("--context-policy", type=Path, required=True)
+    d.add_argument("--seed", type=int, default=20260919)
+    d = sub.add_parser(
         "diagnostic-authorize", help="Record separate owner approval; does not call a provider"
     )
     d.add_argument("directory", type=Path)
@@ -133,6 +141,17 @@ async def run(args, service):
                 settings=service.settings,
                 seed=args.seed,
                 attribution_assumption=args.attribution_assumption,
+            )
+        if c == "diagnostic-prepare-archive":
+            from .archive_prepare import prepare_archive_diagnostic
+
+            return prepare_archive_diagnostic(
+                args.source,
+                args.directory,
+                settings=service.settings,
+                seed=args.seed,
+                selection=json.loads(args.selection.read_text()),
+                context_policy=json.loads(args.context_policy.read_text()),
             )
         if c == "diagnostic-authorize":
             return authorize_diagnostic(

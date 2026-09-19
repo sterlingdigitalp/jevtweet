@@ -24,6 +24,11 @@ for name in filter(None, files):
         or p.name
         in (
             "JEVTWEET_CORPUS_PILOT_PROMPT.md",
+            "JEVTWEET_V2_1_REVIEW_AND_RUN2_HANDOFF.md",
+            "original_archive.zip",
+            "derived_input_manifest.json",
+            "panel_manifest.json",
+            "context_policy.json",
             "source_manifest.json",
             "normalized_source.jsonl",
             "metric_snapshots.jsonl",

@@ -135,10 +135,28 @@ def _load_protocol(directory):
     for name, key in files.items():
         if not (directory / name).is_file() or _sha(directory / name) != protocol.get(key):
             raise ValueError(f"Diagnostic artifact integrity hash mismatch: {name}")
+    _verify_additional_bindings(directory, protocol)
     requests = [JudgeRequest.model_validate(row) for row in _lines(directory / "diagnostic_requests.jsonl")]
     if [r.candidate.candidate_id for r in requests] != protocol["candidate_ids"]:
         raise ValueError("Request membership/order differs from protocol")
     return protocol, requests
+
+
+def _verify_additional_bindings(directory, protocol):
+    """Byte verification only; never parse outcomes during execution admission."""
+    for name, expected in protocol.get("additional_bindings", {}).items():
+        relative = Path(name)
+        path = directory / relative
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or path.is_symlink()
+            or not path.resolve().is_relative_to(directory.resolve())
+            or not path.is_file()
+        ):
+            raise ValueError("Invalid diagnostic artifact binding path")
+        if expected != {"sha256": _sha(path), "size_bytes": path.stat().st_size}:
+            raise ValueError(f"Diagnostic artifact integrity hash mismatch: {name}")
 
 
 def _summary(directory, protocol):
@@ -189,6 +207,11 @@ def prepare_diagnostic(
     manifest = ingest_snapshot_csv(
         source, directory, store=service.store, attribution_assumption=attribution_assumption
     )
+    return _freeze_prepared_inputs(directory, manifest, settings, seed, commit, service)
+
+
+def _freeze_prepared_inputs(directory, manifest, settings, seed, commit, service):
+    """One baseline, request builder, reservation estimate and freeze for every adapter."""
     candidates = {
         r["candidate_id"]: Candidate.model_validate(r) for r in _lines(directory / "candidates.jsonl")
     }
@@ -199,9 +222,7 @@ def prepare_diagnostic(
     ids = sorted(manifest["eligible_candidate_ids"])
     random.Random(seed).shuffle(ids)
     if not ids:
-        raise ValueError(
-            "No original posts without indicated media qualify for the initial diagnostic cohort"
-        )
+        raise ValueError("No eligible inputs qualify for the diagnostic cohort")
     requests, inputs, budgets = [], [], []
     for candidate_id in ids:
         request = JudgeRequest(
@@ -290,6 +311,10 @@ def prepare_diagnostic(
             "claims": "descriptive development diagnosis only; no probability, accuracy, calibration, causal or promotion claim",
         },
     }
+    if manifest.get("diagnostic_plan"):
+        protocol["diagnostic_plan"] = manifest["diagnostic_plan"]
+        protocol["analysis_plan"] = manifest["diagnostic_plan"]["analysis_plan"]
+        protocol["additional_bindings"] = manifest["artifacts"]
     protocol["protocol_hash"] = digest(protocol)
     _write_once(directory / "protocol.json", protocol)
     _write_once(directory / "collection_requirements.md", COLLECTION_REQUIREMENTS, text=True)
@@ -305,8 +330,8 @@ def prepare_diagnostic(
         f"({len(ids)} requests, at most {len(ids) * settings.max_attempts} provider attempts). "
         "These are conservative application estimates, not observed charges.\n\n"
         "`diagnostic_requests.jsonl` contains outcome-blind Service requests; `prepared_inputs.jsonl` "
-        "contains inspectable provider states/questions. Source metrics are separate. Dates are "
-        "calendar dates only; publication/observation times, author history and sampling remain unknown.\n\n"
+        "contains inspectable provider states/questions. Source metrics are separate. Source timing claims "
+        "are not verified publication/observation windows; author history and sampling remain unknown.\n\n"
         "After separate owner approval, bind it using `jevtweet diagnostic-authorize DIRECTORY "
         "--budget-usd APPROVED_CEILING --approved-by OWNER --note APPROVAL_REFERENCE`, then run "
         "`jevtweet diagnostic-run DIRECTORY` with the documented credential and shared-account "

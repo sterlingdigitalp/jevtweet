@@ -131,6 +131,8 @@ async def discover(store: Store, experiment_id: str, proposals: list[dict], *, f
         raise ValueError("Discovery iteration is out of sequence or exceeds the five-iteration cap")
     if history and any(r["cost_limit_usd"] != cost_limit_usd for r in history):
         raise ValueError("An experiment's research cost ceiling is frozen by its first iteration")
+    if history and any(r.get("max_rows", max_rows) != max_rows for r in history):
+        raise ValueError("Keep the same bounded development row cohort across discovery iterations")
     active = [f for r in history for f in r.get("features", []) if f.get("accepted")]
     active_ids = {f["feature_id"] for f in active}
     if any(p["feature_id"] in active_ids for p in proposals):
@@ -180,10 +182,9 @@ async def discover(store: Store, experiment_id: str, proposals: list[dict], *, f
     # must improve the complete current feature set rather than the original base.
     for prior in active:
         prior_values = prior.get("values", {})
-        if all(r["key"] in prior_values for r in rows):
-            names.append(prior["feature_id"])
-            for row in rows:
-                row["features"][prior["feature_id"]] = prior_values[row["key"]]
+        names.append(prior["feature_id"])
+        for row in rows:
+            row["features"][prior["feature_id"]] = prior_values.get(row["key"])
     base_model = fit_model(train, names, 1)
     base_loss = float(log_loss([r["label"] for r in selection], _sigmoid(raw_predict(base_model, selection)), labels=[0, 1]))
     result["baseline_selection_log_loss"] = base_loss

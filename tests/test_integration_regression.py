@@ -187,3 +187,30 @@ def test_default_account_ledger_is_independent_of_working_directory(tmp_path, mo
     monkeypatch.chdir(second)
     second_ledger = Settings().account_dir.resolve()
     assert first_ledger == second_ledger
+
+
+async def test_reference_inadequacy_is_preserved_in_persisted_factor(tmp_path):
+    from jevtweet.contracts import Reference
+
+    class InadequateReferences(MockProvider):
+        async def ask(self, state, questions):
+            result = await super().ask(state, questions)
+            adequacy = result.factors["reference_adequacy"]
+            adequacy.choice = "not_assessable"
+            adequacy.probabilities = {"adequate": 0., "not_assessable": 1., "unknown": 0.}
+            return result
+
+    r = request()
+    r.profile_id = "reference_enriched_v1"
+    reference_texts = [
+        "An observability walkthrough for production queues",
+        "Test data isolation makes migration failures reproducible",
+        "Safer deployment starts with an explicit rollback checklist",
+    ]
+    r.context.references = [Reference(candidate_id=f"ref-{i}", text=text, published_at=T - timedelta(days=4), available_at=T - timedelta(days=4)) for i, text in enumerate(reference_texts)]
+    service = Service(settings(tmp_path), InadequateReferences())
+    result = await service.judge(r)
+    assert result.status == "partial" and result.score_1_to_5 is None
+    assert result.factors["distinctiveness"].assessability == "not_assessable"
+    persisted = service.store.get("judgment", result.judgment_id)
+    assert persisted["factors"]["distinctiveness"]["error"] == "inadequate_reference_set"

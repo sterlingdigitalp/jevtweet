@@ -25,3 +25,9 @@ Strict input allowlists and UTC availability timestamps; private SQLite with mig
 - Default forecast tiers are fixed product probability bands declared before any holdout: 1%, 5%, 15%, 35%. They are not score quantiles or implied evenly spaced success probabilities.
 
 - Explicit initial rubric revision `rubric_v1.1`: added a separate reference-set adequacy Choice for the enriched profile. Three irrelevant references must not turn into a novelty judgment. Original eight ordered criteria and weights are unchanged; missing/inadequate/unknown comparison evidence marks distinctiveness not assessable.
+
+## Verification boundary at handoff
+
+Real CLI and browser judgments completed with the pinned model and server-side environment credential under the owner-authorized persistent $1 ceiling. Opt-in live sensitivity artifacts and the live UI screenshot remain under ignored private directories. These runs establish the interface and execution path, not domain calibration or predictive accuracy. The public example is an original synthetic **mock** result. Remote CI executes only offline/mock mechanics and uploads no private reports.
+
+Independent QA prompted durable cross-process cancellation, lease heartbeat, atomic measurement identity and full frozen-cohort promotion provenance checks. Forecast baselines now share the same history-only function used for observed labels; inference creates no hypothetical target observation. Mixed view sources require an explicit cohort selection and the source policy is frozen with the predictor.

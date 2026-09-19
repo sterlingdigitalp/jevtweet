@@ -1,0 +1,467 @@
+{
+  "attempt_count": 1,
+  "audience_id": "production_ai_coding",
+  "audience_version": "1",
+  "breakout_probability": null,
+  "cached": false,
+  "calibration_status": "not_established",
+  "candidate_id": "synthetic-migration",
+  "candidate_version": 1,
+  "code_commit": "a8a85a9412d9867bc2071e0ab27f6e49bf99dc61",
+  "completed_at": "2026-09-19T01:09:26.583977Z",
+  "cost_is_estimate": true,
+  "created_at": "2026-09-19T01:09:26.584274Z",
+  "error_category": null,
+  "estimated_cost": 0.0,
+  "evidence_completeness": "complete",
+  "execution_mode": "mock",
+  "execution_status": "succeeded",
+  "explanation": {
+    "contributions": [
+      {
+        "label": "Audience relevance",
+        "nearest_criterion": "The candidate directly addresses a central audience need with a concrete, immediately applicable angle.",
+        "nearest_criterion_index": 4,
+        "normalized": 1.0,
+        "quality_contribution": 0.16666666666666666,
+        "question_id": "relevance",
+        "raw_score": 4.0,
+        "weight": 1
+      },
+      {
+        "label": "Standalone clarity",
+        "nearest_criterion": "The intended point and its relevant context are understandable without additional explanation.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "clarity",
+        "raw_score": 3.0,
+        "weight": 1
+      },
+      {
+        "label": "Sharing value",
+        "nearest_criterion": "The candidate offers a specific useful, entertaining, or identity-relevant point for an identifiable recipient.",
+        "nearest_criterion_index": 2,
+        "normalized": 0.5,
+        "quality_contribution": 0.08333333333333333,
+        "question_id": "sharing",
+        "raw_score": 2.0,
+        "weight": 1
+      },
+      {
+        "label": "Conversation value",
+        "nearest_criterion": "The candidate raises a specific question, tradeoff, or observation that readers can meaningfully address.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "conversation",
+        "raw_score": 3.0,
+        "weight": 1
+      },
+      {
+        "label": "Attention payoff",
+        "nearest_criterion": "The content sustains a clear reason to continue and delivers the promised payoff.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "attention",
+        "raw_score": 3.0,
+        "weight": 1
+      },
+      {
+        "label": "Follow value",
+        "nearest_criterion": "The candidate demonstrates a recognizable contribution that could remain useful or interesting in future posts.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "follow",
+        "raw_score": 3.0,
+        "weight": 1
+      }
+    ],
+    "direct_overall": {
+      "included_in_composite": false,
+      "role": "experimental_baseline"
+    },
+    "formula": "quality = weighted_mean(raw_positive / 4); adjusted = clamp(quality - 0.25 * raw_aversion / 4, 0, 1); editorial = 1 + 4 * adjusted; integer = floor(editorial + 0.5)",
+    "meaning": "Editorial potential \u2014 not a calibrated probability.",
+    "missing_checks": [],
+    "missing_evidence": [],
+    "missing_factors": [],
+    "policy_version": "editorial_policy_v1",
+    "review_prompts": [
+      "Name a recipient and the benefit of passing this contribution to them.",
+      "Check that the content delivers the payoff it promises.",
+      "Review promotional pressure, misleading framing, and needless hostility."
+    ],
+    "review_version": "review_v1",
+    "risk_penalty": 0.125,
+    "risk_penalty_rating_points": 0.5,
+    "scope": "Explanation of this rubric calculation, not a causal explanation of future distribution.",
+    "strongest_factors": [
+      {
+        "label": "Audience relevance",
+        "nearest_criterion": "The candidate directly addresses a central audience need with a concrete, immediately applicable angle.",
+        "nearest_criterion_index": 4,
+        "normalized": 1.0,
+        "quality_contribution": 0.16666666666666666,
+        "question_id": "relevance",
+        "raw_score": 4.0,
+        "weight": 1
+      },
+      {
+        "label": "Attention payoff",
+        "nearest_criterion": "The content sustains a clear reason to continue and delivers the promised payoff.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "attention",
+        "raw_score": 3.0,
+        "weight": 1
+      }
+    ],
+    "weakest_factors": [
+      {
+        "label": "Sharing value",
+        "nearest_criterion": "The candidate offers a specific useful, entertaining, or identity-relevant point for an identifiable recipient.",
+        "nearest_criterion_index": 2,
+        "normalized": 0.5,
+        "quality_contribution": 0.08333333333333333,
+        "question_id": "sharing",
+        "raw_score": 2.0,
+        "weight": 1
+      },
+      {
+        "label": "Attention payoff",
+        "nearest_criterion": "The content sustains a clear reason to continue and delivers the promised payoff.",
+        "nearest_criterion_index": 3,
+        "normalized": 0.75,
+        "quality_contribution": 0.125,
+        "question_id": "attention",
+        "raw_score": 3.0,
+        "weight": 1
+      }
+    ]
+  },
+  "factors": {
+    "assessability": {
+      "assessability": "assessable",
+      "choice": "assessable",
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {},
+      "noul": null,
+      "probabilities": {
+        "assessable": 1.0,
+        "not_assessable": 0.0,
+        "unknown": 0.0
+      },
+      "question_id": "assessability",
+      "schema_version": "1",
+      "score": null,
+      "type": "choice"
+    },
+    "attention": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The content provides no identifiable payoff for the attention it requests.",
+        "1": "The content promises a payoff but supplies little substance that fulfills it.",
+        "2": "The content delivers a recognizable payoff, with substantial unnecessary material or weak development.",
+        "3": "The content sustains a clear reason to continue and delivers the promised payoff.",
+        "4": "The content develops its point economically and delivers a concrete payoff that rewards close attention."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 1.0,
+        "4": 0.0
+      },
+      "question_id": "attention",
+      "schema_version": "1",
+      "score": 3.0,
+      "type": "score"
+    },
+    "aversion": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "No recognizable spam, misleading bait, gratuitous hostility, or audience-repelling solicitation appears in the supplied content.",
+        "1": "The content includes a mild promotional or engagement-seeking element that distracts from its substance.",
+        "2": "Promotional pressure, unsupported bait, or needless provocation materially competes with the substance.",
+        "3": "The candidate is dominated by misleading framing, spam-like solicitation, or gratuitous hostility.",
+        "4": "The candidate's central appeal depends on deceptive bait, abusive provocation, or coercive solicitation."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 1.0,
+        "3": 0.0,
+        "4": 0.0
+      },
+      "question_id": "aversion",
+      "schema_version": "1",
+      "score": 2.0,
+      "type": "score"
+    },
+    "clarity": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The intended point cannot be determined from the supplied content.",
+        "1": "Understanding the intended point requires substantial missing background or unexplained references.",
+        "2": "The intended point is identifiable, but an important relationship or term remains unclear.",
+        "3": "The intended point and its relevant context are understandable without additional explanation.",
+        "4": "The intended point is explicit, and the content makes its significance easy to grasp immediately."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 1.0,
+        "4": 0.0
+      },
+      "question_id": "clarity",
+      "schema_version": "1",
+      "score": 3.0,
+      "type": "score"
+    },
+    "conversation": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The candidate offers no identifiable point for an audience member to discuss.",
+        "1": "The candidate requests a reaction but gives readers little substance to contribute to.",
+        "2": "The candidate gives readers a recognizable point on which to share an opinion or experience.",
+        "3": "The candidate raises a specific question, tradeoff, or observation that readers can meaningfully address.",
+        "4": "The candidate creates a focused discussion in which relevant audience members can add concrete examples, evidence, or competing explanations."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 1.0,
+        "4": 0.0
+      },
+      "question_id": "conversation",
+      "schema_version": "1",
+      "score": 3.0,
+      "type": "score"
+    },
+    "direct_overall": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The supplied candidate has no understandable contribution or recognizable benefit that this audience would have reason to pass along.",
+        "1": "The candidate has an understandable point but little specific relevance, recipient benefit, or substance to motivate spreading within this audience.",
+        "2": "The candidate offers a recognizable relevant contribution that gives some members of this audience a concrete reason to discuss or share it.",
+        "3": "The candidate makes a clear, substantive contribution with a strong audience-specific reason to share it and no dominant audience-repelling element.",
+        "4": "The candidate delivers an unusually compelling, self-contained contribution that this audience can readily understand, discuss, and pass to an identifiable recipient, without depending on misleading bait."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 0.0,
+        "4": 1.0
+      },
+      "question_id": "direct_overall",
+      "schema_version": "1",
+      "score": 4.0,
+      "type": "score"
+    },
+    "follow": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The candidate establishes no recognizable reason to seek further content from this author.",
+        "1": "The candidate could come from any account without suggesting a recurring contribution.",
+        "2": "The candidate suggests a topic or perspective the audience may wish to encounter again.",
+        "3": "The candidate demonstrates a recognizable contribution that could remain useful or interesting in future posts.",
+        "4": "The candidate clearly demonstrates a distinctive, repeatable contribution the specified audience has a reason to follow."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 1.0,
+        "4": 0.0
+      },
+      "question_id": "follow",
+      "schema_version": "1",
+      "score": 3.0,
+      "type": "score"
+    },
+    "instruction_like": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": null,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {},
+      "noul": 0.0,
+      "probabilities": {},
+      "question_id": "instruction_like",
+      "schema_version": "1",
+      "score": null,
+      "type": "noul"
+    },
+    "missing_context": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": null,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {},
+      "noul": 0.0,
+      "probabilities": {},
+      "question_id": "missing_context",
+      "schema_version": "1",
+      "score": null,
+      "type": "noul"
+    },
+    "relevance": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The subject has no recognizable connection to this audience's stated interests or needs.",
+        "1": "The subject is adjacent to this audience's interests, but its relevance requires explanation.",
+        "2": "The subject concerns a stated audience interest, without addressing a specific need or curiosity.",
+        "3": "The candidate directly addresses a specific problem, decision, or curiosity described for this audience.",
+        "4": "The candidate directly addresses a central audience need with a concrete, immediately applicable angle."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 0.0,
+        "4": 1.0
+      },
+      "question_id": "relevance",
+      "schema_version": "1",
+      "score": 4.0,
+      "type": "score"
+    },
+    "sharing": {
+      "assessability": "assessable",
+      "choice": null,
+      "confidence": 1.0,
+      "error": null,
+      "evidence_references": [
+        "candidate.text",
+        "audience"
+      ],
+      "legend": {
+        "0": "The candidate provides no identifiable reason to pass it to another person.",
+        "1": "The candidate expresses a familiar point without a clear benefit for a recipient.",
+        "2": "The candidate offers a specific useful, entertaining, or identity-relevant point for an identifiable recipient.",
+        "3": "The candidate gives an identifiable recipient a clear practical benefit, insight, discovery, or entertaining experience.",
+        "4": "The candidate delivers a self-contained contribution that an audience member has a compelling reason to save or pass to a specific kind of recipient."
+      },
+      "noul": null,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.0,
+        "2": 1.0,
+        "3": 0.0,
+        "4": 0.0
+      },
+      "question_id": "sharing",
+      "schema_version": "1",
+      "score": 2.0,
+      "type": "score"
+    }
+  },
+  "input_hash": "f29097c2439a7ca8f91910a25592bcc58d49e63716d308c6c26255a475b4557e",
+  "judgment_id": "5acff652-90c3-427b-a803-970cbb5a937b",
+  "label_definition_id": null,
+  "latency": 0.03266904200427234,
+  "mode": "editorial",
+  "model_requested": "jev-1.13.0",
+  "model_returned": "synthetic_hash_mock_v1",
+  "predictor_id": null,
+  "profile_id": "text_core_v1",
+  "provenance": {
+    "preprocessing_version": "allowlist_v1",
+    "price_as_of": "2026-09-18",
+    "provider": "deterministic_mock_v1",
+    "reference_rule": "keyword_overlap_v1; earlier available text; no target/near-duplicate/thread/test",
+    "response_validation_version": "response_validation_v2",
+    "rubric_hash": "0de7620b87051ad8ef654f1f0714dd47a51c43424a027cb07de63c52febbb22f",
+    "synthetic": true
+  },
+  "quality": 0.75,
+  "reference_set_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "review_flags": [],
+  "risk_penalty": 0.125,
+  "rubric_version": "rubric_v1.1",
+  "schema_version": "1",
+  "score_1_to_5": 4,
+  "score_continuous": 3.5,
+  "sdk_version": "0.7.0",
+  "status": "scored",
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

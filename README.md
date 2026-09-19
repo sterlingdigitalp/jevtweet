@@ -24,7 +24,7 @@ mkdir -p private
 uv run jevtweet --data-dir private/demo demo > private/demo-result.json
 ```
 
-The demo imports original synthetic candidates, judges them with the mock, resumes an idempotent job, attaches synthetic outcomes, compares variants, exports a CSV, and runs synthetic evaluation mechanics. It makes no paid calls. Outputs remain private.
+An inspectable [example mock result](fixtures/example_mock_result.json) is included. The demo imports original synthetic candidates, judges them with the mock, resumes an idempotent job, attaches synthetic outcomes, compares variants, exports a CSV, and runs synthetic evaluation mechanics. It makes no paid calls. Outputs remain private.
 
 ## Live execution and spending
 

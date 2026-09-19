@@ -182,15 +182,38 @@ def _register_archive(store, bundle):
 
     def visit(value):
         if isinstance(value, dict):
-            primary_id = value.get("post_id") or value.get("context_id") or value.get("source_post_id")
-            identity_texts = [(primary_id, value.get("text") or value.get("starter_text"))]
+            primary_id = (
+                value.get("post_id")
+                or value.get("context_id")
+                or value.get("source_post_id")
+                or value.get("article_id")
+            )
+            identity_texts = [
+                (
+                    primary_id,
+                    value.get("text")
+                    or value.get("starter_text")
+                    or value.get("opening")
+                    or value.get("opening_snippet"),
+                )
+            ]
             # An inline quoted source is a distinct identity, never an alias for
             # its target's text. Parent pointers also retain no-text membership.
             quote_text = value.get("quoted_text")
             if not primary_id and quote_text is None:
                 quote_text = value.get("text")
-            identity_texts.extend([(value.get("quoted_id"), quote_text), (value.get("parent_id"), None)])
+            identity_texts.extend(
+                [
+                    (value.get("quoted_id"), quote_text),
+                    (value.get("parent_id"), None),
+                    (value.get("wrapper_post_id"), None),
+                ]
+            )
             for identity, text in identity_texts:
+                # JSON exporters may encode the same source identifier as an integer.
+                # Match the archive/context adapters without treating booleans as IDs.
+                if type(identity) is int:
+                    identity = str(identity)
                 if isinstance(identity, str) and identity:
                     row = {"candidate_id": identity, "candidate_version": 1}
                     if isinstance(text, str) and text.strip():

@@ -161,3 +161,66 @@ def test_metric_join_uses_normalized_counts_without_coercing_blanks_to_zero():
     result = build_archive_records(bundle, resolution, assessment_at=AT)
     assert result["metric_snapshots"][0]["views"] == 1234
     assert result["metric_snapshots"][0]["likes"] is None
+
+
+def test_numeric_source_identifiers_receive_permanent_restrictions(tmp_path):
+    from jevtweet.archive_prepare import _register_archive
+    from jevtweet.research_restrictions import restricted_candidates
+    from jevtweet.service import Service
+    from jevtweet.settings import Settings
+
+    service = Service(Settings(data_dir=tmp_path / "data", account_dir=tmp_path / "account"))
+    bundle = {
+        "source_id": "invented-numeric-source",
+        "targets": [],
+        "versions": [
+            {
+                "record": {
+                    "post_id": "invented-target",
+                    "text": "A complete invented target.",
+                    "quoted_id": 42,
+                    "quoted_text": "Distinct invented source text.",
+                    "parent_id": 43,
+                }
+            },
+            {"record": {"context_id": 44, "text": "Invented standalone source."}},
+        ],
+    }
+    _register_archive(service.store, bundle)
+    candidates = [
+        Candidate(candidate_id=str(identity), text="Changed wording without shared content.")
+        for identity in (42, 43, 44)
+    ]
+    assert set(restricted_candidates(service.store, candidates)) == {"42:1", "43:1", "44:1"}
+
+
+def test_article_source_and_wrapper_identities_remain_diagnostic_only(tmp_path):
+    from jevtweet.archive_prepare import _register_archive
+    from jevtweet.research_restrictions import restricted_candidates
+    from jevtweet.service import Service
+    from jevtweet.settings import Settings
+
+    service = Service(Settings(data_dir=tmp_path / "data", account_dir=tmp_path / "account"))
+    bundle = {
+        "source_id": "invented-article-source",
+        "targets": [],
+        "versions": [
+            {
+                "record": {
+                    "article_id": "invented-article",
+                    "wrapper_post_id": "invented-wrapper",
+                    "opening_snippet": "An invented partial article opening.",
+                    "full_body_missing": True,
+                }
+            }
+        ],
+    }
+    _register_archive(service.store, bundle)
+    candidates = [
+        Candidate(candidate_id=identity, text="Unrelated changed wording.")
+        for identity in ("invented-article", "invented-wrapper")
+    ]
+    assert set(restricted_candidates(service.store, candidates)) == {
+        "invented-article:1",
+        "invented-wrapper:1",
+    }

@@ -8,6 +8,13 @@ from jevtweet import evaluation as ev
 from jevtweet.storage import Store
 
 
+def raw_label_eligibility(store, **kwargs):
+    # Label-construction unit checks use the low-level dataset builder. Public
+    # eligibility now only exposes safely partitioned development outcomes.
+    data = ev.build_dataset(store, **kwargs)
+    return dict(data, eligible_rows=len(data["rows"]))
+
+
 def label_data():
     cutoff = datetime(2025, 6, 1, tzinfo=timezone.utc)
     candidate = {
@@ -186,8 +193,10 @@ def test_attached_outcomes_flow_into_evaluation_eligibility(tmp_path):
     assert dataset["rows"][0]["features"]["log_followers"] is None
     j["execution_mode"] = "mock"
     store.put("judgment", "judgment", j, replace=True)
-    assert ev.eligibility(store)["eligible_rows"] == 0
-    assert "mock_cannot_establish_real_predictive_evidence" in ev.eligibility(store)["exclusion_counts"]
+    assert raw_label_eligibility(store)["eligible_rows"] == 0
+    assert (
+        "mock_cannot_establish_real_predictive_evidence" in raw_label_eligibility(store)["exclusion_counts"]
+    )
 
 
 def test_splits_purge_forward_duplicates_threads_and_immature_labels():
@@ -248,28 +257,11 @@ def test_synthetic_never_promotes_and_rejections_are_audited(synthetic_report):
     assert ev.predict(store, "unused")["breakout_probability"] is None
 
 
-def test_real_holdout_cannot_be_reopened_even_with_new_id(tmp_path, monkeypatch):
-    rows = ev._synthetic_rows(160)
-    for r in rows:
-        r["synthetic"] = False
-        r["execution_mode"] = "live"
-    data = {
-        "rows": rows,
-        "exclusions": [],
-        "labels": [],
-        "total_candidates": len(rows),
-        "coverage": 1,
-        "exclusion_counts": {},
-        "configuration_signatures": [],
-    }
-    monkeypatch.setattr(ev, "build_dataset", lambda *args, **kwargs: deepcopy(data))
-    monkeypatch.setattr(ev, "_bootstrap", lambda *args, **kwargs: {"clusters": 40, "intervals": {}})
+def test_legacy_holdout_id_cannot_bypass_explicit_open(tmp_path):
     store = Store(tmp_path)
-    first = ev.evaluate(store)
-    assert first["status"] == "evaluated"
-    second = ev.evaluate(store, holdout_id="new-name-does-not-make-new-data")
-    assert second["status"] == "holdout_already_consumed" and not second["metrics"]
-    assert len(store.list("holdout")) == 1
+    with pytest.raises(ValueError, match="freeze_evaluation.*open_holdout"):
+        ev.evaluate(store, holdout_id="new-name-does-not-make-new-data")
+    assert store.list("holdout") == []
 
 
 def test_undefined_metrics_and_fold_local_preprocessing():
@@ -303,7 +295,7 @@ def test_eligibility_rejects_unverified_model_rubric_schema(tmp_path, mutation, 
     judgment = attach_data(store)
     judgment.update(mutation)
     store.put("judgment", "judgment", judgment, replace=True)
-    result = ev.eligibility(store)
+    result = raw_label_eligibility(store)
     assert result["eligible_rows"] == 0 and result["exclusion_counts"][reason] == 1
 
 
@@ -565,8 +557,10 @@ def test_mixed_views_sources_require_explicit_cohort_filter(tmp_path):
     outcome = deepcopy(store.get("outcome", "target-observation"))
     outcome.update(observation_id="second-outcome", candidate_id="second-target", source="other-native-views")
     store.put("outcome", "second-outcome", outcome)
-    mixed = ev.eligibility(store, task="absolute_48h_v1")
+    mixed = raw_label_eligibility(store, task="absolute_48h_v1")
     assert mixed["eligible_rows"] == 0
     assert mixed["exclusion_counts"]["mixed_views_sources_without_mapping_select_explicit_source"] == 2
-    selected = ev.eligibility(store, task="absolute_48h_v1", cohort={"outcome_source": "manual_native_views"})
+    selected = raw_label_eligibility(
+        store, task="absolute_48h_v1", cohort={"outcome_source": "manual_native_views"}
+    )
     assert selected["eligible_rows"] == 1

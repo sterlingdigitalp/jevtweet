@@ -42,13 +42,20 @@ def parser():
     o.add_argument("--format", choices=["csv", "jsonl"])
     c = sub.add_parser("compare")
     c.add_argument("path", type=Path)
-    e = sub.add_parser("evaluate")
-    e.add_argument("--synthetic", action="store_true")
-    e.add_argument("--task", default="breakout_48h_v1")
-    e.add_argument("--representative-sampling", action="store_true")
-    e.add_argument("--population", default="")
-    e.add_argument("--output", type=Path)
-    e.add_argument("--cohort", default="{}")
+    for name in ("evaluate", "preflight", "freeze-evaluation", "readiness"):
+        e = sub.add_parser(name)
+        e.add_argument("--synthetic", action="store_true")
+        e.add_argument("--task", default="breakout_48h_v1")
+        e.add_argument("--representative-sampling", action="store_true")
+        e.add_argument("--population", default="")
+        e.add_argument("--sampling-declaration", default="")
+        e.add_argument("--max-rows", type=int, default=5000)
+        e.add_argument("--output", type=Path)
+        e.add_argument("--cohort", default="{}")
+    opening = sub.add_parser("open-holdout")
+    opening.add_argument("experiment_id")
+    opening.add_argument("--frozen-candidate-hash", required=True)
+    opening.add_argument("--output", type=Path)
     ec = sub.add_parser("compare-experiments")
     ec.add_argument("ids", nargs="+")
     x = sub.add_parser("export")
@@ -63,6 +70,11 @@ def parser():
     server.add_argument("--port", type=int, default=8000)
     f = sub.add_parser("forecast")
     f.add_argument("judgment_id")
+    f.add_argument("--predictor-id")
+    f.add_argument("--task")
+    listing = sub.add_parser("predictors")
+    listing.add_argument("--judgment-id")
+    listing.add_argument("--task")
     m = sub.add_parser("promote")
     m.add_argument("experiment_id")
     m.add_argument("--approved-by", required=True)
@@ -148,17 +160,33 @@ async def run(args, service):
         return await service.compare(
             [JudgeRequest.model_validate(r) for r in json.loads(args.path.read_text())]
         )
-    if c == "evaluate":
-        from .evaluation import evaluate
+    if c in ("evaluate", "preflight", "freeze-evaluation", "readiness"):
+        from .contracts import EvaluationRequest
+        from .evaluation import evaluate, freeze_evaluation, preflight
+        from .readiness import development_readiness
 
-        return evaluate(
-            store,
+        body = EvaluationRequest(
             synthetic=args.synthetic,
             task=args.task,
             representative_sampling=args.representative_sampling,
             comparison_population=args.population,
+            sampling_declaration=args.sampling_declaration,
+            max_rows=args.max_rows,
             cohort=json.loads(args.cohort),
         )
+        action = {
+            "evaluate": evaluate,
+            "preflight": preflight,
+            "freeze-evaluation": freeze_evaluation,
+            "readiness": development_readiness,
+        }[c]
+        return action(store, **body.model_dump(exclude={"schema_version"}))
+    if c == "open-holdout":
+        from .contracts import OpenHoldoutRequest
+        from .evaluation import open_holdout
+
+        body = OpenHoldoutRequest(frozen_candidate_hash=args.frozen_candidate_hash)
+        return open_holdout(store, args.experiment_id, frozen_candidate_hash=body.frozen_candidate_hash)
     if c == "compare-experiments":
         from .evaluation import compare_experiments
 
@@ -183,7 +211,11 @@ async def run(args, service):
     if c == "forecast":
         from .evaluation import predict
 
-        return predict(store, args.judgment_id)
+        return predict(store, args.judgment_id, predictor_id=args.predictor_id, task=args.task)
+    if c == "predictors":
+        from .evaluation import compatible_predictors
+
+        return compatible_predictors(store, judgment_id=args.judgment_id, task=args.task)
     if c == "promote":
         from .evaluation import promote
 

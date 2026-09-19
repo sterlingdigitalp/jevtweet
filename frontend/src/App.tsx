@@ -153,7 +153,7 @@ export default function App() {
             ) : workspace === "corpus" ? (
               <Corpus config={config} session={session} />
             ) : (
-              <Experiments session={session} />
+              <Experiments session={session} config={config} />
             )
           ) : !error ? (
             <div className="empty">

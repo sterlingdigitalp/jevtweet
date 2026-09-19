@@ -18,6 +18,94 @@ const responseFor = (page: Page, path: string) =>
       new URL(response.url()).pathname === path &&
       response.request().method() === "POST",
   );
+// All tests share one disposable backend. Freeze the generated fixture before imports
+// create corpus candidates; serial execution makes this prerequisite deterministic.
+test.describe.configure({ mode: "serial" });
+test.describe("real backend / staged evaluation workflow", () => {
+  test.skip(!enabled, "Requires a disposable backend with the built frontend.");
+  test.setTimeout(120_000);
+  test("preflight and readiness precede immutable freeze and explicit final holdout opening", async ({
+    page,
+  }) => {
+    await page.goto("/#experiments");
+    await page
+      .getByRole("combobox", { name: "Dataset", exact: true })
+      .selectOption("synthetic");
+    await page
+      .getByRole("textbox", { name: "Comparison population", exact: true })
+      .fill("Original synthetic workflow fixture only");
+    await page
+      .getByRole("textbox", { name: "Sampling declaration", exact: true })
+      .fill(
+        "Generated synthetic mechanics data; this is not representative predictive research.",
+      );
+    await page
+      .getByLabel("Representative sampling declared", { exact: true })
+      .check();
+    const readinessPending = responseFor(page, "/api/experiments/readiness");
+    await page
+      .getByRole("button", {
+        name: "Estimate collection readiness",
+        exact: true,
+      })
+      .click();
+    const readinessResponse = await readinessPending;
+    expect(readinessResponse.ok()).toBe(true);
+    const readiness = await readinessResponse.json();
+    expect(readiness.scope).toBe("development_only");
+    expect(readiness.test_outcomes_inspected).toBe(false);
+    const preflightPending = responseFor(page, "/api/experiments/preflight");
+    await page
+      .getByRole("button", { name: "Check preflight", exact: true })
+      .click();
+    const preflightResponse = await preflightPending;
+    expect(preflightResponse.ok()).toBe(true);
+    const preflight = await preflightResponse.json();
+    expect(preflight.ready_to_freeze).toBe(true);
+    expect(preflight.test_exposed).toBe(false);
+    const freezePending = responseFor(page, "/api/experiments/freeze");
+    await page
+      .getByRole("button", { name: "Freeze candidate", exact: true })
+      .click();
+    const freezeResponse = await freezePending;
+    expect(freezeResponse.ok()).toBe(true);
+    const frozen = await freezeResponse.json();
+    expect(frozen.status).toBe("frozen");
+    expect(frozen.test_exposed).toBe(false);
+    expect(frozen.metrics).toEqual({});
+    await expect(
+      page.getByRole("textbox", { name: "Sampling declaration", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Frozen declarations", { exact: true }),
+    ).toBeVisible();
+    const openPending = responseFor(
+      page,
+      `/api/experiments/${frozen.experiment_id}/open-holdout`,
+    );
+    await page
+      .getByRole("button", { name: "Open final holdout once", exact: true })
+      .click();
+    const openResponse = await openPending;
+    expect(openResponse.ok()).toBe(true);
+    const evaluated = await openResponse.json();
+    expect(evaluated.status).toBe("evaluated");
+    expect(evaluated.test_exposed).toBe(true);
+    expect(evaluated.frozen_candidate_hash).toBe(frozen.frozen_candidate_hash);
+    expect(evaluated.forecast_available).toBe(false);
+    expect(evaluated.predictive_validation).toBe("not_established");
+    await expect(
+      page.getByRole("button", {
+        name: "Open final holdout once",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Same-cohort method comparison", { exact: true }),
+    ).toBeVisible();
+  });
+});
+
 test.describe("real backend / explicitly mock provider", () => {
   test.skip(
     !enabled,
@@ -180,7 +268,7 @@ test.describe("real backend / explicitly mock provider", () => {
       .selectOption("real");
     const evaluated = responseFor(page, "/api/experiments");
     await page
-      .getByRole("button", { name: "Evaluate eligible real records" })
+      .getByRole("button", { name: "Evaluate development only" })
       .click();
     const evaluation = await (await evaluated).json();
     expect(evaluation.status).toBe("not_ready");

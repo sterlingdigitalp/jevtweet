@@ -26,4 +26,44 @@ jobs:
         working-directory: frontend
       - run: npm test
         working-directory: frontend
+      - name: Browser integration against disposable mock-only backend
+        env:
+          TYPESAFE_API_KEY: ''
+          JEVTWEET_SPEND_LIMIT_USD: '0'
+          JEVTWEET_RUN_LIVE: '0'
+          JEVTWEET_E2E_LIVE: '0'
+          JEVTWEET_E2E_URL: http://127.0.0.1:8197
+        shell: bash
+        run: |
+          set -euo pipefail
+          integration_dir="$(mktemp -d "${RUNNER_TEMP}/jevtweet-integration.XXXXXX")"
+          export JEVTWEET_ACCOUNT_DIR="${integration_dir}/account"
+          backend_pid=''
+          cleanup() {
+            if [[ -n "$backend_pid" ]]; then
+              kill "$backend_pid" 2>/dev/null || true
+              wait "$backend_pid" 2>/dev/null || true
+            fi
+            rm -rf "$integration_dir"
+          }
+          trap cleanup EXIT
+          uv run jevtweet --data-dir "${integration_dir}/data" serve --port 8197 > "${integration_dir}/backend.log" 2>&1 &
+          backend_pid=$!
+          ready=0
+          for attempt in {1..60}; do
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              echo 'Disposable backend exited before readiness.'
+              exit 1
+            fi
+            if curl --fail --silent --output /dev/null "${JEVTWEET_E2E_URL}/api/session"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            echo 'Disposable backend did not become ready within 60 seconds.'
+            exit 1
+          fi
+          npm run test:integration --prefix frontend
       - run: uv run jevtweet --data-dir /tmp/jevtweet-demo demo > /tmp/jevtweet-demo-result.json

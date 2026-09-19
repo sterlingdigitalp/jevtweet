@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { api, number, percent, readable } from "./api";
 import { Badge, Empty, ErrorBox, Fact, JsonView } from "./components";
-import type { Report, Session } from "./types";
+import type { Config, Report, Session } from "./types";
 import Discovery from "./Discovery";
 function reportId(report: Report): string {
   return String(report.experiment_id ?? report.id ?? "");
@@ -241,6 +241,10 @@ function ReportView({ report }: { report: Report }) {
     "promotion_gates",
     "audit",
     "limitations",
+    "configuration",
+    "configuration_errors",
+    "development_summary",
+    "frozen_candidate_hash",
   ];
   const [all, setAll] = useState(false);
   return (
@@ -289,11 +293,31 @@ function ReportView({ report }: { report: Report }) {
     </section>
   );
 }
-export default function Experiments({ session }: { session: Session }) {
+export default function Experiments({
+  session,
+  config,
+}: {
+  session: Session;
+  config: Config;
+}) {
   const [reports, setReports] = useState<Report[]>([]);
   const [active, setActive] = useState<Report | null>(null);
   const [synthetic, setSynthetic] = useState(true);
   const [task, setTask] = useState("breakout_48h_v1");
+  const [cohort, setCohort] = useState<Record<string, string>>({
+    audience_id: "",
+    audience_version: "",
+    profile_id: "",
+    rubric_version: "",
+    model_requested: "",
+    outcome_source: "",
+  });
+  const [population, setPopulation] = useState("");
+  const [sampling, setSampling] = useState("");
+  const [representative, setRepresentative] = useState(false);
+  const [maxRows, setMaxRows] = useState(5000);
+  const [preflight, setPreflight] = useState<Report | null>(null);
+  const [readiness, setReadiness] = useState<Report | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -301,12 +325,59 @@ export default function Experiments({ session }: { session: Session }) {
       .then(setReports)
       .catch((e) => setError(e.message));
   }, []);
-  async function run() {
+  const locked = Boolean(active?.frozen_candidate_hash);
+  function changed() {
+    setPreflight(null);
+    setReadiness(null);
+  }
+  function declaration() {
+    const selected = Object.fromEntries(
+      Object.entries(cohort)
+        .filter(([, value]) => value.trim())
+        .map(([key, value]) => [key, value.trim()]),
+    );
+    return {
+      synthetic,
+      task,
+      representative_sampling: representative,
+      comparison_population: population.trim(),
+      sampling_declaration: sampling.trim(),
+      max_rows: maxRows,
+      cohort: Object.keys(selected).length ? selected : null,
+    };
+  }
+  async function run(action: "run" | "preflight" | "freeze" | "readiness") {
     setError("");
-    setBusy("run");
+    setBusy(action);
     try {
-      const report = await api<Report>("/experiments", { synthetic, task });
-      setActive(report);
+      const report = await api<Report>(
+        action === "run" ? "/experiments" : `/experiments/${action}`,
+        declaration(),
+      );
+      if (action === "preflight") setPreflight(report);
+      else if (action === "readiness") setReadiness(report);
+      else {
+        setActive(report);
+        setReports(await api<Report[]>("/experiments"));
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function openHoldout() {
+    if (!active || active.status !== "frozen" || !active.frozen_candidate_hash)
+      return;
+    setError("");
+    setBusy("open");
+    try {
+      setActive(
+        await api<Report>(
+          `/experiments/${encodeURIComponent(reportId(active))}/open-holdout`,
+          { frozen_candidate_hash: active.frozen_candidate_hash },
+        ),
+      );
       setReports(await api<Report[]>("/experiments"));
     } catch (e) {
       setError((e as Error).message);
@@ -373,44 +444,231 @@ export default function Experiments({ session }: { session: Session }) {
         <section className="panel">
           <h2>Run a reproducible evaluation</h2>
           <p className="muted">
-            Chronological partitions, outcome maturation, baseline comparisons,
-            and calibration are enforced in the backend.
+            Development evaluation and collection planning leave final-test
+            outcomes closed. Check the declaration, freeze a candidate, then
+            explicitly open its final test once.
           </p>
-          <label>
-            Dataset
-            <select
-              value={synthetic ? "synthetic" : "real"}
-              onChange={(e) => setSynthetic(e.target.value === "synthetic")}
+          {!locked && (
+            <fieldset
+              className="evaluation-declaration"
+              disabled={!!busy}
+              onChange={changed}
             >
-              <option value="synthetic">
-                Synthetic mechanics demonstration
-              </option>
-              <option value="real">Private real corpus</option>
-            </select>
-          </label>
-          <label>
-            Outcome task
-            <select value={task} onChange={(e) => setTask(e.target.value)}>
-              <option value="breakout_48h_v1">
-                Breakout within 48 hours · absolute + relative
-              </option>
-              <option value="absolute_48h_v1">
-                Absolute reach within 48 hours · cold start
-              </option>
-            </select>
-          </label>
-          <p className="fine-print">
-            Breakout requires ≥10,000 views and ≥10× the author’s qualifying
-            historical baseline. Missing history makes the relative task
-            unavailable.
-          </p>
-          <button className="primary" disabled={!!busy} onClick={run}>
-            {busy === "run"
-              ? "Evaluating…"
-              : synthetic
-                ? "Run synthetic demonstration"
-                : "Evaluate eligible real records"}
-          </button>
+              <legend>Prospective evaluation declaration</legend>
+              <label>
+                Dataset
+                <select
+                  value={synthetic ? "synthetic" : "real"}
+                  onChange={(e) => setSynthetic(e.target.value === "synthetic")}
+                >
+                  <option value="synthetic">
+                    Synthetic mechanics demonstration
+                  </option>
+                  <option value="real">Private real corpus</option>
+                </select>
+              </label>
+              <label>
+                Outcome task
+                <select value={task} onChange={(e) => setTask(e.target.value)}>
+                  <option value="breakout_48h_v1">
+                    Breakout within 48 hours · absolute + relative
+                  </option>
+                  <option value="absolute_48h_v1">
+                    Absolute reach within 48 hours · cold start
+                  </option>
+                </select>
+              </label>
+              <p className="fine-print">
+                Breakout requires ≥10,000 views and ≥10× the author’s qualifying
+                historical baseline. Missing history makes the relative task
+                unavailable.
+              </p>
+              <div className="cohort-fields">
+                {(
+                  [
+                    [
+                      "audience_id",
+                      "Cohort audience ID",
+                      config.audiences[0]?.audience_id ?? "",
+                    ],
+                    [
+                      "audience_version",
+                      "Cohort audience version",
+                      config.audiences[0]?.version ?? "",
+                    ],
+                    ["profile_id", "Cohort profile ID", "text_core_v1"],
+                    [
+                      "rubric_version",
+                      "Cohort rubric version",
+                      config.rubric.version,
+                    ],
+                    ["model_requested", "Cohort requested model", "jev-1.13.0"],
+                    [
+                      "outcome_source",
+                      "Outcome source",
+                      "Exact source from attached observations",
+                    ],
+                  ] as const
+                ).map(([key, label, placeholder]) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      value={cohort[key]}
+                      placeholder={placeholder}
+                      onChange={(e) =>
+                        setCohort({ ...cohort, [key]: e.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="fine-print">
+                Blank cohort fields permit only an unambiguous configuration.
+                Outcome source applies to both the target observation and
+                historical baseline; views and impressions remain separate.
+              </p>
+              <label>
+                Comparison population
+                <textarea
+                  rows={2}
+                  value={population}
+                  onChange={(e) => setPopulation(e.target.value)}
+                  placeholder="Who the forecast would apply to"
+                />
+              </label>
+              <label>
+                Sampling declaration
+                <textarea
+                  rows={3}
+                  value={sampling}
+                  onChange={(e) => setSampling(e.target.value)}
+                  placeholder="How records were collected before observing outcomes, including exclusions"
+                />
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={representative}
+                  onChange={(e) => setRepresentative(e.target.checked)}
+                />
+                Representative sampling declared
+              </label>
+              <label>
+                Evaluation row cap
+                <input
+                  type="number"
+                  min={40}
+                  max={5000}
+                  step={1}
+                  value={maxRows}
+                  onChange={(e) => setMaxRows(Number(e.target.value))}
+                />
+              </label>
+            </fieldset>
+          )}
+          {!locked && (
+            <>
+              <div className="evaluation-actions">
+                <button
+                  className="secondary"
+                  disabled={!!busy}
+                  onClick={() => run("readiness")}
+                >
+                  {busy === "readiness"
+                    ? "Estimating…"
+                    : "Estimate collection readiness"}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={!!busy}
+                  onClick={() => run("run")}
+                >
+                  {busy === "run"
+                    ? "Evaluating…"
+                    : synthetic
+                      ? "Run synthetic demonstration"
+                      : "Evaluate development only"}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={!!busy}
+                  onClick={() => run("preflight")}
+                >
+                  {busy === "preflight" ? "Checking…" : "Check preflight"}
+                </button>
+                <button
+                  className="primary"
+                  disabled={!!busy || preflight?.ready_to_freeze !== true}
+                  onClick={() => run("freeze")}
+                >
+                  {busy === "freeze" ? "Freezing…" : "Freeze candidate"}
+                </button>
+              </div>
+              {preflight && (
+                <JsonView
+                  value={preflight}
+                  label="Non-consuming preflight"
+                  open
+                />
+              )}
+              {readiness && (
+                <section aria-label="Development collection readiness">
+                  <h3>Development collection readiness</h3>
+                  <p className="fine-print">
+                    Estimated collection needs use development outcomes only.
+                    The 5,000-row evaluation cap may prevent a proposed
+                    collection from fitting into a single evaluation; inspect
+                    the reported feasibility before research.
+                  </p>
+                  <JsonView
+                    value={readiness}
+                    label="Collection estimates and limits"
+                    open
+                  />
+                </section>
+              )}
+            </>
+          )}
+          {locked && (
+            <section className="notice" aria-label="Frozen candidate controls">
+              <h3>Frozen declarations</h3>
+              <p>
+                The saved configuration is immutable. Opening the final holdout
+                consumes its single evaluation opportunity and does not promote
+                a predictor.
+              </p>
+              <JsonView
+                value={
+                  active?.configuration ??
+                  active?.declarations ??
+                  active?.cohort
+                }
+                label="Saved declaration"
+                open
+              />
+              {active?.status === "frozen" && (
+                <button
+                  className="primary"
+                  disabled={!!busy}
+                  onClick={openHoldout}
+                >
+                  {busy === "open"
+                    ? "Opening final holdout…"
+                    : "Open final holdout once"}
+                </button>
+              )}
+              <button
+                className="secondary"
+                disabled={!!busy}
+                onClick={() => {
+                  setActive(null);
+                  changed();
+                }}
+              >
+                Start new declaration
+              </button>
+            </section>
+          )}
           <p className="fine-print">
             Final holdouts are for frozen candidates, not repeated tuning.
             Evaluation does not automatically promote a forecast.

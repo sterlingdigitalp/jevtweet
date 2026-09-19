@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, number, percent, readable } from "./api";
 import type { Config, Factor, Inspection, Judgment } from "./types";
 export function JsonView({
@@ -148,6 +148,11 @@ export function Result({
   const [inspector, setInspector] = useState<Inspection | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [predictors, setPredictors] = useState<
+    { predictor_id: string; task: string; comparison_population: string }[]
+  >([]);
+  const [predictorId, setPredictorId] = useState("");
+  const [predictorsLoading, setPredictorsLoading] = useState(false);
   const [forecast, setForecast] = useState<{
     available: boolean;
     breakout_probability?: number;
@@ -155,11 +160,47 @@ export function Result({
     comparison_population?: string;
     reason?: string;
   } | null>(null);
+  useEffect(() => {
+    let current = true;
+    setForecast(null);
+    setPredictors([]);
+    setPredictorId("");
+    if (!forecastAvailable) return;
+    setPredictorsLoading(true);
+    api<
+      { predictor_id: string; task: string; comparison_population: string }[]
+    >(`/predictors?judgment_id=${encodeURIComponent(j.judgment_id)}`)
+      .then((items) => {
+        if (current) {
+          setPredictors(items);
+          setPredictorId(items.length === 1 ? items[0].predictor_id : "");
+        }
+      })
+      .catch((e) => {
+        if (current) setError(e.message);
+      })
+      .finally(() => {
+        if (current) setPredictorsLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [forecastAvailable, j.judgment_id]);
   async function requestForecast() {
+    const predictor = predictors.find(
+      (item) => item.predictor_id === predictorId,
+    );
+    if (!predictor) return;
     setBusy(true);
     setError("");
     try {
-      setForecast(await api(`/forecast/${encodeURIComponent(j.judgment_id)}`));
+      const query = new URLSearchParams({
+        predictor_id: predictor.predictor_id,
+        task: predictor.task,
+      });
+      setForecast(
+        await api(`/forecast/${encodeURIComponent(j.judgment_id)}?${query}`),
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -248,9 +289,39 @@ export function Result({
           }
         />
       </div>
+      {forecastAvailable && (
+        <label>
+          Approved compatible predictor
+          <select
+            value={predictorId}
+            disabled={busy || predictorsLoading}
+            onChange={(e) => {
+              setPredictorId(e.target.value);
+              setForecast(null);
+            }}
+          >
+            <option value="">
+              {predictorsLoading
+                ? "Finding compatible predictors…"
+                : predictors.length
+                  ? "Select a predictor"
+                  : "No compatible approved predictor"}
+            </option>
+            {predictors.map((predictor) => (
+              <option
+                key={predictor.predictor_id}
+                value={predictor.predictor_id}
+              >
+                {predictor.predictor_id} · {readable(predictor.task)} ·{" "}
+                {predictor.comparison_population}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <button
         className="secondary small"
-        disabled={!forecastAvailable || busy}
+        disabled={!forecastAvailable || busy || !predictorId}
         onClick={requestForecast}
       >
         {forecastAvailable

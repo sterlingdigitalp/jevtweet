@@ -16,6 +16,7 @@ classes = [
     "ImportRequest",
     "JobRequest",
     "EvaluationRequest",
+    "OpenHoldoutRequest",
     "DiscoveryRequest",
 ]
 target = Path(__file__).resolve().parent.parent / "schemas"

@@ -2,7 +2,63 @@
 
 Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtweet`, branch `main`. Build identity is derived from Git; dirty working builds are identified in judgment lineage.
 
-## Milestones
+## Focused V1 hardening — implemented and locally verified
+
+Reviewed starting commit `9b361d85be9cdf1a7ca516409a144258f16d0076`; initial working tree was clean. Architecture, rubric, scoring arithmetic and promotion thresholds are preserved. Codex root owns shared contracts, API/CLI, readiness, integration and documentation; the evaluation workstream owns evaluation logic/workflow regressions, the regression workstream owns selection/source/predictor regressions, and the frontend workstream owns browser controls/tests and CI. No live requests were made during this pass; all verification used invented temporary records, test doubles or the explicit mock provider.
+
+Reproduced before behavior changes:
+
+- `.venv/bin/pytest -q tests/test_holdout_workflow.py` — failed: a real evaluation with no declarations consumed a holdout.
+- `.venv/bin/pytest -q tests/test_hardening_selection.py` — initially 13 failures and 4 passes; subsequent UTC timestamp-order and post-publication-cutoff regressions each failed before their fixes. Early mock/failed/invalid judgments concealed qualifying live retries, attempt provenance was absent, explicit sources were applied after ambiguity rejection, and global newest predictor selection hid compatible predictors. Ambiguity and impressions rejection already worked and remain protected.
+- `.venv/bin/pytest -q tests/test_hardening_api.py` — 4 failures: missing preflight/readiness/opening routes and typed configuration boundary.
+- `npm test --prefix frontend -- --grep 'evaluation declarations require' --timeout=6000` — failed before UI edits: no cohort control or staged opening workflow. A second browser regression failed because explicit compatible-predictor selection was absent.
+- `.venv/bin/pytest -q tests/test_readiness.py` — 4 failures: development collection planning did not exist.
+
+- Independent review reproduced five further leakage failures before their fixes: opening loaded another holdout frozen later; development-exposed rows could be presented as untouched after earlier corpus growth, re-keying, version changes or near-duplicate copying. Additional tests cover purged test rows, immutable declarations and concurrent opening.
+- The browser integration suite initially passed with parallel scheduling, then `--workers=1` reproduced **3 passed / 1 failed** because earlier imports contaminated the staged fixture workflow. Fixed its ordering and serialized the shared disposable backend tests, with no product fallback change.
+- A new readiness regression caught an optimistic cap comparison using only successful rows. The cap check now includes observed exclusions and reports both nominal and exclusion-adjusted positive capacity.
+
+Implemented fixes:
+
+- Explicit audience/version/profile/rubric/model/source cohort controls, population, written sampling declaration and attestation. API/CLI/browser preflight validates pre-test configuration and known support shortfalls without reserving or consuming a holdout. Real `evaluate` and `eligibility` are development-only. Freeze stores immutable declarations and development-fitted models; final opening requires the exact frozen hash, atomically consumes once, then reads test outcomes. Insufficient outcomes after opening remain consumed.
+- Temporal membership precedes label access. All initially assigned final rows stay protected, including purged rows and aliases. Private development-exposure metadata prevents previously accessed development/history outcomes becoming an untouched final test after corpus changes. Atomic exposure/freeze/open checks include current registries and legacy report provenance; old declarations are not rewritten.
+- `earliest_qualifying_configured_attempt_v1` selects by normalized UTC timestamp and stable ID only after execution/configuration/lineage validity checks. It retains every attempt and exclusion, retry recovery and failed-candidate coverage. Explicit source selection governs target labels and historical baselines before ambiguity resolution; impressions never substitute for views.
+- Approved predictors resolve by complete compatible configuration and task. Multiple compatible artifacts require explicit selection. Invalid or other-audience artifacts cannot hide valid ones; lineage and promotion checks remain required.
+- Development readiness reports observed frequency, positive/negative support, exclusions, staged collection denominators and independent author/content clusters, with collection scenarios and the unchanged 5,000-row cap. It reads no final-test outcomes and makes no power, accuracy or promotion claim.
+- Normal CI now starts a disposable loopback backend with an empty `TYPESAFE_API_KEY`, a zero-dollar ceiling and an isolated account directory; runs all four actual-backend/mock-provider browser workflows; then cleans up. No live credentials or private artifact uploads.
+
+Final local verification (all passed):
+
+```sh
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/pytest -q
+.venv/bin/ruff check jevtweet tests scripts
+.venv/bin/ruff format --check jevtweet tests scripts
+.venv/bin/python scripts/check_public.py
+git diff --check
+npm run build --prefix frontend
+npm run format:check --prefix frontend
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 JEVTWEET_E2E_LIVE=0 npm test --prefix frontend
+JEVTWEET_E2E_URL=http://127.0.0.1:8197 JEVTWEET_E2E_LIVE=0 npm run test:integration --prefix frontend -- --workers=1
+```
+
+Results: **218 backend tests passed**, one opt-in live test skipped; **8 isolated browser tests passed**, five opt-in checks skipped there; **4 actual-backend browser tests passed** separately against a fresh credential-free, zero-budget backend. One upstream Starlette/AnyIO deprecation warning remains. The focused evaluator/reuse group passed 75 tests; the independent selection/adversarial group passed 37. Predictor resolution unit tests explicitly isolate lineage checks, which retain separate artifact/gate regressions. Invented real-mode workflow fixtures lower sample-count gates only within isolated tests; production policy is unchanged.
+
+Reproducible staged CLI demonstration also passed with empty credentials and zero budget:
+
+```sh
+.venv/bin/jevtweet --data-dir private/hardening-cli readiness --synthetic --max-rows 160 --output private/hardening-cli-results/readiness.json
+.venv/bin/jevtweet --data-dir private/hardening-cli preflight --synthetic --max-rows 160 --output private/hardening-cli-results/preflight.json
+.venv/bin/jevtweet --data-dir private/hardening-cli freeze-evaluation --synthetic --max-rows 160 --output private/hardening-cli-results/freeze-evaluation.json
+# Values below were read from the preceding private frozen record:
+.venv/bin/jevtweet --data-dir private/hardening-cli open-holdout EXPERIMENT_ID --frozen-candidate-hash FROZEN_HASH --output private/hardening-cli-results/opened.json
+.venv/bin/jevtweet --data-dir private/hardening-cli spending
+```
+
+Observed statuses: `planning_estimate`, `ready`, `frozen`, `evaluated`; synthetic promotion rejected; **zero live requests and $0 charged/reserved**. The full-loop command `TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 JEVTWEET_ACCOUNT_DIR=/tmp/jevtweet-hardening-demo-account .venv/bin/jevtweet --data-dir private/hardening-full-demo demo > private/hardening-full-demo-result.json` also passed and remains part of normal CI. Remote CI status for the pushed milestone is reported in the handoff.
+
+Remaining limitations: no real labeled corpus or predictive research was used, no predictor was promoted, and no new accuracy/calibration/causal-effect claims are established. Exposure tracking is deliberately conservative for outcome bodies accessed in the local database and cannot certify that a human or external tool never inspected outcomes. Unjudged chronological candidates, including baseline-only records, conservatively contribute to collection denominators; inspect staged counts. The unchanged cap can make rare-event research infeasible without a separately versioned resource-policy change. Reports, databases and payloads remain private. No unresolved failing software path remains in the tested scope.
+
+## Initial V1 milestones (historical)
 
 1. **Foundation — complete.** Read the full brief; preserved the only initial local file. Verified primary TypeSafe sources, available SDK 0.7.0, pinned X snapshot and agreement. Locked dependencies; strict v1 contracts, generated schemas, SQLite migration, synthetic fixtures, offline CI.
 2. **Vertical slice — implemented.** CLI and browser use the shared service. Real CLI Jev judgment completed, with pinned model identity, deterministic 1–5 editorial score, private persistence and exact run inspector. Actual-backend browser judge/inspect/compare passed with explicit mock mode. Opt-in live browser-to-persistence check passed against the clean committed build; screenshot and response are private.
@@ -11,7 +67,7 @@ Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtwee
 5. **Research extension — complete.** Reviewed proposals, development-only errors/state, bounded questions/rows/requests/cumulative cost, nonredundancy and incremental-value retention, version comparisons. Actual-backend browser discovery completed on synthetic data without live calls or promotion.
 6. **Hardening/handoff — complete.** Independent QA regressions integrated; clean-commit synthetic demo, real CLI/UI integration, public-boundary scan, and remote offline CI all passed.
 
-## Executed verification
+## Initial V1 verification (historical)
 
 - `UV_CACHE_DIR=/tmp/jevtweet-uv-cache uv sync --locked --offline` — passed.
 - `.venv/bin/ruff check jevtweet tests scripts` and `.venv/bin/ruff format --check jevtweet tests scripts` — passed.

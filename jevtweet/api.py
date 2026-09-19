@@ -21,6 +21,7 @@ from .contracts import (
     ImportRequest,
     JobRequest,
     JudgeRequest,
+    OpenHoldoutRequest,
     OutcomeObservation,
     PromotionRequest,
 )
@@ -289,14 +290,41 @@ def create_app(settings: Settings | None = None, service: Service | None = None)
     async def evaluate(body: EvaluationRequest):
         from .evaluation import evaluate
 
+        return await asyncio.to_thread(evaluate, service.store, **body.model_dump(exclude={"schema_version"}))
+
+    @app.post("/api/experiments/preflight")
+    async def preflight(body: EvaluationRequest):
+        from .evaluation import preflight
+
         return await asyncio.to_thread(
-            evaluate,
+            preflight, service.store, **body.model_dump(exclude={"schema_version"})
+        )
+
+    @app.post("/api/experiments/freeze")
+    async def freeze(body: EvaluationRequest):
+        from .evaluation import freeze_evaluation
+
+        return await asyncio.to_thread(
+            freeze_evaluation, service.store, **body.model_dump(exclude={"schema_version"})
+        )
+
+    @app.post("/api/experiments/readiness")
+    async def readiness(body: EvaluationRequest):
+        from .readiness import development_readiness
+
+        return await asyncio.to_thread(
+            development_readiness, service.store, **body.model_dump(exclude={"schema_version"})
+        )
+
+    @app.post("/api/experiments/{experiment_id}/open-holdout")
+    async def open_holdout(experiment_id: str, body: OpenHoldoutRequest):
+        from .evaluation import open_holdout
+
+        return await asyncio.to_thread(
+            open_holdout,
             service.store,
-            synthetic=body.synthetic,
-            task=body.task,
-            representative_sampling=body.representative_sampling,
-            comparison_population=body.comparison_population,
-            cohort=body.cohort,
+            experiment_id,
+            frozen_candidate_hash=body.frozen_candidate_hash,
         )
 
     @app.post("/api/experiments/compare")
@@ -318,10 +346,16 @@ def create_app(settings: Settings | None = None, service: Service | None = None)
         return promote(service.store, experiment_id, approved_by=body.approved_by, rationale=body.rationale)
 
     @app.get("/api/forecast/{judgment_id}")
-    def forecast(judgment_id: str):
+    def forecast(judgment_id: str, predictor_id: str | None = None, task: str | None = None):
         from .evaluation import predict
 
-        return predict(service.store, judgment_id)
+        return predict(service.store, judgment_id, predictor_id=predictor_id, task=task)
+
+    @app.get("/api/predictors")
+    def predictors(judgment_id: str | None = None, task: str | None = None):
+        from .evaluation import compatible_predictors
+
+        return compatible_predictors(service.store, judgment_id=judgment_id, task=task)
 
     @app.get("/api/discovery/{experiment_id}/errors")
     def development_errors(experiment_id: str):

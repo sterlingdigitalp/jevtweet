@@ -28,8 +28,22 @@
     },
     "comparison_population": {
       "default": "",
+      "maxLength": 4000,
       "title": "Comparison Population",
       "type": "string"
+    },
+    "sampling_declaration": {
+      "default": "",
+      "maxLength": 8000,
+      "title": "Sampling Declaration",
+      "type": "string"
+    },
+    "max_rows": {
+      "default": 5000,
+      "maximum": 5000,
+      "minimum": 40,
+      "title": "Max Rows",
+      "type": "integer"
     },
     "cohort": {
       "anyOf": [

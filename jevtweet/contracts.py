@@ -241,8 +241,14 @@ class EvaluationRequest(Record):
     synthetic: bool = False
     task: Literal["breakout_48h_v1", "absolute_48h_v1"] = "breakout_48h_v1"
     representative_sampling: bool = False
-    comparison_population: str = ""
+    comparison_population: str = Field(default="", max_length=4000)
+    sampling_declaration: str = Field(default="", max_length=8000)
+    max_rows: int = Field(default=5000, ge=40, le=5000)
     cohort: dict[str, str] | None = None
+
+
+class OpenHoldoutRequest(Record):
+    frozen_candidate_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class DiscoveryRequest(Record):

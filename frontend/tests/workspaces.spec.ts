@@ -421,3 +421,190 @@ test("connection failures are recoverable on mobile", async ({ page }) => {
     ),
   ).toBe(true);
 });
+
+test("evaluation declarations require non-consuming preflight, immutable freeze and explicit holdout opening", async ({
+  page,
+}) => {
+  await base(page);
+  const requests: { path: string; body: Record<string, unknown> }[] = [];
+  const declaration = {
+    synthetic: false,
+    task: "absolute_48h_v1",
+    representative_sampling: true,
+    comparison_population: "Synthetic workflow test population",
+    sampling_declaration: "Consecutive collection before outcomes are observed",
+    max_rows: 5000,
+    cohort: {
+      audience_id: "production_ai_coding",
+      audience_version: "1",
+      profile_id: "text_core_v1",
+      rubric_version: "rubric_v1",
+      model_requested: "jev-1.13.0",
+      outcome_source: "platform_export",
+    },
+  };
+  const frozen = {
+    experiment_id: "synthetic-freeze",
+    status: "frozen",
+    synthetic: false,
+    frozen_candidate_hash: "synthetic-hash",
+    configuration: declaration,
+    test_exposed: false,
+  };
+  await page.route("**/api/experiments/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = route.request().postDataJSON();
+    requests.push({ path, body });
+    await route.fulfill({
+      json: path.endsWith("/preflight")
+        ? {
+            status: "ready",
+            ready_to_freeze: true,
+            test_exposed: false,
+            configuration: declaration,
+          }
+        : path.endsWith("/freeze")
+          ? frozen
+          : {
+              ...frozen,
+              status: "evaluated",
+              test_exposed: true,
+              forecast_available: false,
+            },
+    });
+  });
+  await page.goto("/#experiments");
+  await page
+    .getByRole("combobox", { name: "Dataset", exact: true })
+    .selectOption("real");
+  await page
+    .getByRole("combobox", { name: "Outcome task", exact: true })
+    .selectOption("absolute_48h_v1");
+  await page
+    .getByLabel("Cohort audience ID", { exact: true })
+    .fill("production_ai_coding");
+  await page.getByLabel("Cohort audience version", { exact: true }).fill("1");
+  await page
+    .getByLabel("Cohort profile ID", { exact: true })
+    .fill("text_core_v1");
+  await page
+    .getByLabel("Cohort rubric version", { exact: true })
+    .fill("rubric_v1");
+  await page
+    .getByLabel("Cohort requested model", { exact: true })
+    .fill("jev-1.13.0");
+  await page
+    .getByLabel("Outcome source", { exact: true })
+    .fill("platform_export");
+  await page
+    .getByRole("textbox", { name: "Comparison population", exact: true })
+    .fill(declaration.comparison_population);
+  await page
+    .getByRole("textbox", { name: "Sampling declaration", exact: true })
+    .fill(declaration.sampling_declaration);
+  await page
+    .getByLabel("Representative sampling declared", { exact: true })
+    .check();
+  await expect(
+    page.getByRole("button", { name: "Freeze candidate", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Check preflight", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Freeze candidate", exact: true }),
+  ).toBeEnabled();
+  expect(requests[0]).toEqual({
+    path: "/api/experiments/preflight",
+    body: declaration,
+  });
+  await page
+    .getByRole("textbox", { name: "Comparison population", exact: true })
+    .fill("Changed prospective population");
+  await expect(
+    page.getByRole("button", { name: "Freeze candidate", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("textbox", { name: "Comparison population", exact: true })
+    .fill(declaration.comparison_population);
+  await page
+    .getByRole("button", { name: "Check preflight", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Freeze candidate", exact: true })
+    .click();
+  await expect(
+    page.getByText("Frozen declarations", { exact: true }),
+  ).toBeVisible();
+  expect(
+    requests.some((request) => request.path.endsWith("/open-holdout")),
+  ).toBe(false);
+  await page
+    .getByRole("button", { name: "Open final holdout once", exact: true })
+    .click();
+  await expect(page.locator(".experiment-report")).toContainText("evaluated");
+  expect(requests.at(-1)).toEqual({
+    path: "/api/experiments/synthetic-freeze/open-holdout",
+    body: { frozen_candidate_hash: "synthetic-hash" },
+  });
+});
+
+test("forecast selection sends an explicit compatible predictor and task", async ({
+  page,
+}) => {
+  await base(page);
+  await page.route("**/api/session", (route) =>
+    route.fulfill({
+      json: { ...session, forecast: { available: true, reasons: [] } },
+    }),
+  );
+  await page.route("**/api/judge", (route) =>
+    route.fulfill({ json: judgment }),
+  );
+  await page.route("**/api/predictors?**", (route) => {
+    expect(new URL(route.request().url()).searchParams.get("judgment_id")).toBe(
+      judgment.judgment_id,
+    );
+    return route.fulfill({
+      json: [
+        {
+          predictor_id: "synthetic-audience-predictor-a",
+          task: "breakout_48h_v1",
+          comparison_population: "Synthetic population A",
+        },
+        {
+          predictor_id: "synthetic-audience-predictor-b",
+          task: "absolute_48h_v1",
+          comparison_population: "Synthetic population B",
+        },
+      ],
+    });
+  });
+  let selected = "";
+  await page.route("**/api/forecast/**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    selected = params.get("predictor_id") ?? "";
+    expect(params.get("task")).toBe("absolute_48h_v1");
+    return route.fulfill({
+      json: { available: false, reason: "Synthetic routing fixture only" },
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByLabel("Candidate", { exact: true })
+    .fill("Synthetic forecast-routing candidate");
+  await page.getByRole("button", { name: "Judge candidate" }).click();
+  await page
+    .getByRole("combobox", {
+      name: "Approved compatible predictor",
+      exact: true,
+    })
+    .selectOption("synthetic-audience-predictor-b");
+  await page
+    .getByRole("button", { name: "Inspect approved forecast", exact: true })
+    .click();
+  await expect(page.getByLabel("Forecast result")).toContainText(
+    "Synthetic routing fixture only",
+  );
+  expect(selected).toBe("synthetic-audience-predictor-b");
+});

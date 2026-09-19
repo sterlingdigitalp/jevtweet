@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "frozen_candidate_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Frozen Candidate Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "frozen_candidate_hash"
+  ],
+  "title": "OpenHoldoutRequest",
+  "type": "object"
+}

@@ -59,6 +59,10 @@ uv run jevtweet attach-outcomes fixtures/outcomes_synthetic.jsonl
 uv run jevtweet eligibility
 uv run jevtweet evaluate --synthetic --output private/synthetic-evaluation.json
 uv run jevtweet evaluate --task breakout_48h_v1 --output private/evaluation.json
+uv run jevtweet readiness --task breakout_48h_v1 --output private/readiness.json
+uv run jevtweet preflight --synthetic --max-rows 160
+uv run jevtweet freeze-evaluation --synthetic --max-rows 160 --output private/frozen-demo.json
+uv run jevtweet open-holdout EXPERIMENT_ID --frozen-candidate-hash EXACT_FROZEN_HASH
 uv run jevtweet export --format csv --mode mock --profile text_core_v1 \
   --audience production_ai_coding --output private/ranked.csv
 uv run jevtweet discovery-errors EXPERIMENT_ID
@@ -66,6 +70,8 @@ uv run jevtweet discover EXPERIMENT_ID fixtures/discovery_proposals.json \
   --cost-limit 0.20 --max-rows 100 --max-requests 100
 uv run jevtweet compare-experiments EXPERIMENT_ID_A EXPERIMENT_ID_B
 uv run jevtweet forecast JUDGMENT_ID
+uv run jevtweet predictors --judgment-id JUDGMENT_ID --task breakout_48h_v1
+uv run jevtweet forecast JUDGMENT_ID --predictor-id PREDICTOR_ID --task breakout_48h_v1
 uv run jevtweet promote EXPERIMENT_ID --approved-by OWNER --rationale 'Reviewed evidence and deployment population'
 uv run jevtweet spending
 ```
@@ -97,6 +103,24 @@ Editorial scoring has one backend implementation. Positive scores divide by four
 Evaluation compares constant prevalence, direct Jev, calibrated editorial score, metadata-only, Jev-plus-metadata, and Jev-only models on a common eligible cohort. Chronological train/selection/calibration/test boundaries, outcome maturation, duplicate/thread purging, author holdout, fold-local transformations and calibration are recorded. Reports include ranking and probability metrics, reliability data, subgroups, cluster-resampled uncertainty, bands, failures, coverage and exclusions. Undefined metrics remain null. Raw editorial scores are never probabilities.
 
 The frozen promotion policy requires representative sampling, adequate independent real outcomes, calibration, incremental utility over metadata, uncertainty support, and manual approval. Synthetic runs cannot promote. Identical experiment replay returns its frozen report; a changed candidate cannot reuse an opened real holdout. Forecast tier boundaries are versioned probabilities, not within-batch ranks; tier 5 starts at 35%, not 80%.
+
+### Development, freeze, and final-test opening
+
+Real `evaluate` and `eligibility` are development-only. The Experiments workspace has separate **preflight**, **freeze**, and **open final test** actions. Preflight validates declarations and development support without reserving or consuming a holdout. Development access records exposure metadata: rows already inspected cannot become an untouched test by changing the corpus or cohort. Freeze fits on development partitions and persists the candidate and declarations. Opening requires that experiment's exact frozen hash, validates its integrity, then atomically consumes the test before reading its outcomes. Insufficient evidence after opening still consumes it; changing the experiment ID, candidate version or declarations cannot reopen it. Existing evaluated reports are not retrospectively rewritten.
+
+For real preflight/freeze, supply `--cohort` JSON with `audience_id`, `audience_version`, `profile_id`, `rubric_version`, `model_requested`, and `outcome_source`, plus `--population`, `--sampling-declaration`, and `--representative-sampling`. The declaration should describe the collection frame, dates and inclusion/exclusion rules; the checkbox is an attestation, not evidence that sampling was representative. Candidate provenance must also document sampling. The same fields have explicit browser controls. Invalid configuration is rejected before any holdout is reserved or opened. API clients use `POST /api/experiments/preflight`, `/freeze`, and `/{experiment_id}/open-holdout`; the opening body accepts only `frozen_candidate_hash` (and schema version), never revised declarations.
+
+Judgment selection uses `earliest_qualifying_configured_attempt_v1`: filter by declared configuration and required execution mode, validate completion, features and input lineage, then select by UTC `created_at` and judgment ID. Earlier mocks or failures do not conceal a qualifying live retry; later successful retries cannot replace the first qualifying result because of a better score or outcome. All attempts and reasons remain in the audit, including failed candidates and candidates recovered by retry. Outcomes are considered only after judgment selection. An explicit views source filters **both** the target and the as-of historical baseline before label construction; without selection, multiple valid target sources remain ambiguous. Impressions never count as views.
+
+Forecast resolution searches approved, lineage-valid predictors matching the judgment's audience/version, profile, rubric/hash, schema and pinned model, and the requested task when supplied. A newer incompatible predictor cannot hide an older compatible one. If several match, select an explicit predictor ID in the browser or CLI. Selection does not bypass eligibility or promotion checks.
+
+### Collection readiness and the evaluation cap
+
+Before predictive research, run `readiness` with the intended task/cohort or use **Development readiness** in Experiments. It observes development event frequency, positive/negative counts, exclusions, retention and author/content clusters. It estimates collection needs against the existing positive-outcome and unfamiliar-author gates and shows a lower-frequency scenario. It does not read final-test outcomes, fit a predictor, open a holdout, or change thresholds. Reports are private; write CLI results under `private/`.
+
+These are count expectations, not a power calculation or a guarantee of useful predictions. Unknown authors do not count toward independent support, and many posts from a few authors cannot repair a lack of independent authors. Temporal shifts, purges and correlated observations can require substantially more data. Zero observed positives or negatives gives no finite two-class estimate.
+
+The current evaluation cap is **5,000 intended prediction rows before execution and label exclusions**, with a nominal 20% test fraction: at most about 1,000 test rows before exclusions. Unjudged chronological candidates conservatively count toward the collection denominator; inspect the report's staged collection counts, especially if the database also contains baseline-only history. A 1% event frequency gives roughly 10 positives, below the required 40. Even without exclusions, the 40-positive gate implies at least 4% frequency at the cap; the separate 10-positive unfamiliar-author gate can be tighter (about 5% assuming the nominal 20% author holdout). Exclusions increase raw collection needs. If the estimate exceeds the cap, retain editorial-only mode or explicitly revise and version the resource policy before a new prospective evaluation. Do not rebalance outcomes, weaken gates, pool repeated final tests, or inspect test outcomes to tune the plan. The hardening pass does not raise the cap or make new accuracy claims.
 
 Reviewed feature proposals can add narrow Score/Noul questions on development-only state. Caps: five iterations, eight proposals per iteration, 24 active semantic features, explicit row/request/cumulative-cost limits. Retention requires incremental development value and nonredundancy. Research never promotes production automatically; accepted features require a new untouched holdout.
 

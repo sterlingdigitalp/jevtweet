@@ -2,7 +2,17 @@
 
 Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtweet`, branch `main`. Build identity is derived from Git; dirty working builds are identified in judgment lineage.
 
-## Private snapshot diagnostic preparation — implemented and verified offline
+## Authorized diagnostic execution — completed; results private
+
+Executed the owner's separately approved fixed protocol from clean commit `a507f3a4e2c676a9fe73ebc9368e6c05a1577f00`. Verified the bound approval, unchanged source/request/configuration hashes, pinned model/SDK, private identity restrictions and sufficient shared-account headroom before execution. Existing pilot and account spending controls remained active; no ledger was reset and the authorized ceiling was respected.
+
+The existing `diagnostic-authorize`, `diagnostic-run` and post-freeze `diagnostic-report` CLI commands completed successfully. First results were immutably frozen before metric joins. Every planned input, including abstentions, is retained in a private readable candidate table and interpretation report. Execution success, editorial status, certainty, evidence completeness and untimed metrics remain distinct. No result was rerun for its score or popularity; no inputs, audience, rubric, questions, scoring, ordering or retry policy changed.
+
+Verified freeze/database equality, preserved source/input hashes, complete table membership and exact displayed text/scores/factors/flags/metrics, usage-based accounting, unchanged reservations for prior work and no extra attempts. Local browser inspection of the private static table passed with external requests blocked. No application code or tests changed in this assignment; the execution and presentation checks used the previously tested pinned implementation. No integrity or spending-control failure occurred.
+
+Only this sanitized status is published. Corpus contents, approval/protocol/freeze identifiers, counts, costs, source-specific interpretations, screenshots, raw responses and research artifacts remain in ignored private storage. No predictor training, promotion, additional live experiment or feature work occurred. No predictive accuracy, calibration, generalization or causal-effect claim is established; the data limitations and permanent diagnostic-only protections remain in force.
+
+## Private snapshot diagnostic preparation — historical offline milestone
 
 Starting from hardened V1 commit `9f8dd1af0eaf1e1f60ff807991093be1bd2ce340`; preserved existing work. The source-specific brief, export and reports are private and excluded from Git. Codex root remains integration lead (contracts, orchestration, service budget reuse, CLI, documentation); parallel owners implemented lossless ingestion, report verification, and permanent research restrictions. Baseline audience/rubric/scoring, promotion thresholds and holdout protections are unchanged. The pilot has **zero live authorization**; the historical verification budget does not authorize this work.
 

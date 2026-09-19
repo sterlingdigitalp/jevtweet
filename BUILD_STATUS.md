@@ -2,9 +2,19 @@
 
 Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtweet`, branch `main`. Build identity is derived from Git; dirty working builds are identified in judgment lineage.
 
-## Private archive normalization — implemented and verified offline
+## Authorized run-two diagnostic execution — completed; results private
 
-Preserved the supplied ZIP and earlier pilot without alteration. Root led integration and shared protocol/CLI boundaries; parallel workstreams owned archive normalization, context resolution and independent source/code verification. No new paid protocol is authorized. No live calls, predictor training, promotion or new predictive claims occurred in this pass.
+Executed the owner's separately approved fixed run-two protocol from clean commit `0666f2dfa24ff96217bd17961d6fc6d50de83805`. Verified the bound approval, unchanged source/request/configuration hashes, pinned model/SDK, private identity restrictions and sufficient shared-account headroom before execution. Existing pilot and account spending controls remained active; no ledger was reset and the authorized ceiling was respected.
+
+The existing `diagnostic-authorize`, `diagnostic-run` and post-freeze `diagnostic-report` CLI commands completed successfully. First results were immutably frozen before metric joins. Every planned input across both panels, including abstentions, is retained in a private readable candidate table and interpretation report. Execution success, editorial status, certainty, evidence completeness and untimed metrics remain distinct. No result was rerun for its score or popularity; no inputs, selected context, ordering, model, audience, rubric, questions, scoring or retry policy changed.
+
+Verified freeze/database equality, preserved source/input hashes, complete table membership and exact displayed target/quote text/scores/factors/flags/metrics, usage-based accounting, unchanged reservations for prior work and no extra attempts. Local browser inspection of the private static table passed with external requests blocked. No application code or tests changed in this assignment; the execution and presentation checks used the previously tested pinned implementation. No integrity or spending-control failure occurred.
+
+Only this sanitized status is published. Corpus contents, approval/protocol/freeze identifiers, counts, costs, source-specific interpretations, screenshots, raw responses and research artifacts remain in ignored private storage. No predictor training, promotion, additional live experiment, rubric revision or feature work occurred. No predictive accuracy, calibration, generalization or causal-effect claim is established; the data limitations and permanent diagnostic-only protections remain in force.
+
+## Private archive normalization — historical offline milestone
+
+Preserved the supplied ZIP and earlier pilot without alteration. Root led integration and shared protocol/CLI boundaries; parallel workstreams owned archive normalization, context resolution and independent source/code verification. That pass authorized no new paid protocol. No live calls, predictor training, promotion or new predictive claims occurred in that pass.
 
 Implemented immutable archive/payload verification with explicit stale self-manifest discrepancy recording; source-role declarations and field-level version provenance; primary/gapfill identity deduplication; JSONL metric joins and fresh derived summaries/manifests; conservative source/context quarantine; separate original and quote panels; strict nested input allowlists; shared baseline preparation/cost/freeze/authorization. Every target and metrics-only orphan remains accounted for. Original text numbers are preserved; collector metrics, ranks, annotations and author statistics remain private sidecars. Quote replies retain exact identity, separate parents, and per-evidence timing. Claimed collection times do not become verified historical availability or fixed-window outcomes.
 

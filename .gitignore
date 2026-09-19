@@ -10,6 +10,7 @@ __pycache__/
 *.db-*
 *.sqlite*
 private/
+JEVTWEET_CORPUS_PILOT_PROMPT.md
 data/
 artifacts/
 logs/

@@ -88,6 +88,23 @@ def parser():
     d.add_argument("--max-rows", type=int, default=100)
     d.add_argument("--max-requests", type=int, default=100)
     d.add_argument("--live", action="store_true")
+    d = sub.add_parser(
+        "diagnostic-prepare", help="Offline, private snapshot audit and outcome-blind requests"
+    )
+    d.add_argument("source", type=Path)
+    d.add_argument("directory", type=Path)
+    d.add_argument("--seed", type=int, default=20260918)
+    d.add_argument("--attribution-assumption")
+    d = sub.add_parser(
+        "diagnostic-authorize", help="Record separate owner approval; does not call a provider"
+    )
+    d.add_argument("directory", type=Path)
+    d.add_argument("--budget-usd", type=float, required=True)
+    d.add_argument("--approved-by", required=True)
+    d.add_argument("--note", required=True)
+    for name in ("diagnostic-run", "diagnostic-report"):
+        d = sub.add_parser(name)
+        d.add_argument("directory", type=Path)
     return p
 
 
@@ -106,6 +123,36 @@ def emit(value, path=None):
 async def run(args, service):
     store = service.store
     c = args.command
+    if c.startswith("diagnostic-"):
+        from .diagnostics import authorize_diagnostic, prepare_diagnostic, run_diagnostic
+
+        if c == "diagnostic-prepare":
+            return prepare_diagnostic(
+                args.source,
+                args.directory,
+                settings=service.settings,
+                seed=args.seed,
+                attribution_assumption=args.attribution_assumption,
+            )
+        if c == "diagnostic-authorize":
+            return authorize_diagnostic(
+                args.directory,
+                pilot_ceiling_usd=args.budget_usd,
+                approved_by=args.approved_by,
+                approval_note=args.note,
+            )
+        if c == "diagnostic-run":
+            return await run_diagnostic(args.directory, settings=service.settings)
+        from .diagnostic_report import write_diagnostic_report
+
+        report = write_diagnostic_report(args.directory)
+        # The report contains private source text; stdout is a receipt only.
+        return {
+            "status": "reported",
+            "directory": str(args.directory),
+            "report_file": "diagnostic_report.md",
+            "freeze_hash": report["freeze_hash"],
+        }
     if c == "judge":
         if args.input:
             request = JudgeRequest.model_validate_json(args.input.read_text())

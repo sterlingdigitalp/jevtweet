@@ -2,6 +2,42 @@
 
 Integration lead: Codex root. Owner-designated remote: `sterlingdigitalp/jevtweet`, branch `main`. Build identity is derived from Git; dirty working builds are identified in judgment lineage.
 
+## Private snapshot diagnostic preparation — implemented and verified offline
+
+Starting from hardened V1 commit `9f8dd1af0eaf1e1f60ff807991093be1bd2ce340`; preserved existing work. The source-specific brief, export and reports are private and excluded from Git. Codex root remains integration lead (contracts, orchestration, service budget reuse, CLI, documentation); parallel owners implemented lossless ingestion, report verification, and permanent research restrictions. Baseline audience/rubric/scoring, promotion thresholds and holdout protections are unchanged. The pilot has **zero live authorization**; the historical verification budget does not authorize this work.
+
+Implemented reusable paths:
+
+- Lossless byte archive, raw CSV columns, opaque outcome-independent identities, honest ingestion timestamps and unwindowed metric sidecars. Explicit context/media exclusions preserve every row without invented authorship, observation windows, author history or sampling.
+- Outcome-blind independent requests in a frozen seeded order, pinned code/configuration and descriptive analysis plan, shared runtime cost arithmetic, and an offline private handoff. Separate protocol-bound owner approval and persistent pilot/account limits are required for execution.
+- First-terminal-result checkpointing, bounded service retries, pacing, crash recovery, and immutable results before metric joins. No successful/partial/abstained judgment is rerun to match popularity; uncertain interruptions stop with reservations retained. No mock fallback.
+- Report verification, full coverage, missingness/ties and descriptive composite/direct-baseline associations only. Private collection requirements preserve the later representative, timestamped, independent-author research assignment and unchanged evaluation cap.
+- Permanent private diagnostic membership across identities/close duplicates and datasets sharing the configured account registry; enforced before labels, baselines, references, holdout opening, saved discovery reuse, promotion and forecasts. Public boundary scanner rejects diagnostic artifact filenames.
+
+Reproductions before repairs: missing preparation/ingestion/report APIs failed initial collection; ten restriction regressions initially failed. Four additional behavioral regressions exposed saved-discovery and baseline-only lineage reuse. Independent adversarial tests reproduced freeze-file crash recovery and avoidable local rate-limit failures; both now pass. Nine report integrity regressions exposed prepared-input, request/configuration, fingerprint/SDK/version and source-artifact mismatches; they now pass. A further regression reproduced incompatible returned model identity on a no-answer failure; the runner now rejects it before freezing. All fixtures are original invented data; injected SDK-shaped envelopes test wiring and are not Jev evidence.
+
+Verification completed:
+
+```sh
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/pytest -q
+.venv/bin/ruff check jevtweet tests scripts
+.venv/bin/ruff format --check jevtweet tests scripts
+.venv/bin/python scripts/check_public.py
+git diff --check
+npm run build --prefix frontend
+npm run format:check --prefix frontend
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 JEVTWEET_E2E_LIVE=0 npm test --prefix frontend
+bash /tmp/jevtweet-pilot-browser-check.sh
+```
+
+Results: **306 backend tests passed**, one opt-in live test skipped; **8 isolated browser tests passed**, five opt-in checks skipped there; **4 actual-backend/mock-provider integration tests passed**. The temporary browser script reproduced CI's disposable backend setup at port 8198 with blank credentials, zero budget, isolated data/account stores and cleanup; its browser command was `JEVTWEET_E2E_URL=http://127.0.0.1:8198 JEVTWEET_E2E_LIVE=0 npm run test:integration --prefix frontend -- --workers=1`. The first sandboxed browser attempt could not bind localhost (`EPERM`); the authorized rerun passed. The upstream Starlette/AnyIO deprecation warning remains.
+
+Focused coverage includes lossless ingestion (16 tests), report bindings/analysis plus full preparation-to-freeze-to-report wiring (40 tests), crash/pacing/authorization/budget/model/first-result handling (13 tests), and permanent membership/reuse controls (19 tests). These are offline tests, including explicitly injected SDK-shaped fixture responses; they establish no Jev semantic result. No pilot provider request, semantic finding, probability model, real final-test opening or promotion has occurred.
+
+The clean-commit offline command is `TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/jevtweet diagnostic-prepare /path/to/private/export.csv private/corpora/diagnostic_v1`; the source-specific path, audit, exact prospective cost, frozen code identity and reproducibility receipt belong in the ignored private handoff. Separate owner approval is still required before `diagnostic-authorize` or live execution. Existing account authorization is not transferred.
+
+Remaining limitations: snapshot authenticity, sampling, authorship, publication/measurement windows and historical baselines are not supplied by this adapter. Actual rubric diagnosis and descriptive associations remain unavailable until authorized first judgments are frozen. The source is permanently diagnostic-only; a representative, timestamped, independent-author corpus and genuinely new final evidence remain necessary. Shared-registry retention and common account configuration are required across datasets; arbitrary paraphrases and deliberate filesystem/registry bypass are outside the local protection guarantee. No new predictive accuracy, calibration or causal-effect claim has been established. No unresolved failure remains in the tested software scope.
+
 ## Focused V1 hardening — implemented and locally verified
 
 Reviewed starting commit `9b361d85be9cdf1a7ca516409a144258f16d0076`; initial working tree was clean. Architecture, rubric, scoring arithmetic and promotion thresholds are preserved. Codex root owns shared contracts, API/CLI, readiness, integration and documentation; the evaluation workstream owns evaluation logic/workflow regressions, the regression workstream owns selection/source/predictor regressions, and the frontend workstream owns browser controls/tests and CI. No live requests were made during this pass; all verification used invented temporary records, test doubles or the explicit mock provider.

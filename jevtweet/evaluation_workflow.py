@@ -14,6 +14,7 @@ from datetime import timedelta
 
 from . import evaluation as ev
 from .contracts import canonical, digest, now, uid
+from .research_restrictions import report_restrictions, restricted_candidates
 from .storage import Store
 
 WORKFLOW_VERSION = "holdout_workflow_v1"
@@ -120,6 +121,8 @@ def _safe_outcomes(store, protected_ids, *, authorized_test_ids=None, record_exp
     relabeled as an untouched final test by changing a later corpus boundary.
     """
     authorized_test_ids = set(authorized_test_ids or ())
+    diagnostic = restricted_candidates(store, store.list("candidate"))
+    diagnostic_ids = {key.rsplit(":", 1)[0] for key in diagnostic}
     with store.transaction() as db:
         protected_ids = set(protected_ids)
         current = [
@@ -149,6 +152,8 @@ def _safe_outcomes(store, protected_ids, *, authorized_test_ids=None, record_exp
             if ev._overlaps_holdout([identity], identities):
                 protected_ids.add(candidate["candidate_id"])
         protected_ids -= authorized_test_ids
+        # An opening authorization cannot override permanent source membership.
+        protected_ids.update(diagnostic_ids)
         clause = (
             " AND json_extract(body, '$.candidate_id') NOT IN (" + ",".join("?" for _ in protected_ids) + ")"
             if protected_ids
@@ -200,6 +205,7 @@ def prepare_development(store: Store, *, task="breakout_48h_v1", synthetic=False
     prior_identities, prior_keys = _protected_identities(store)
     prior_ids = {key.rsplit(":", 1)[0] for key in prior_keys}
     protected_ids = set(prior_ids)
+    protected_ids.update(key.rsplit(":", 1)[0] for key in selection["research_restrictions"])
     for candidate in candidates:
         identity = ev._holdout_identity(dict(candidate, key=ev._key(candidate)))
         if (
@@ -615,6 +621,8 @@ def freeze_evaluation(store: Store, **kwargs):
     declarations = _declarations(**kwargs)
     data, errors, issues = _prepare(store, declarations)
     report = _new_report(data, declarations)
+    if report_restrictions(store, report):
+        errors.append("Permanent diagnostic-only corpus identities cannot freeze a predictive evaluation")
     if errors or issues:
         report["configuration_errors"] = errors
         report["not_ready_reasons"] = errors + issues
@@ -680,6 +688,8 @@ def open_holdout(store: Store, experiment_id: str, *, frozen_candidate_hash: str
         raise ValueError("Frozen candidate hash or immutable declarations changed")
     if _configuration_errors(**frozen["declarations"]):
         raise ValueError("Frozen configuration does not satisfy pre-test requirements")
+    if report_restrictions(store, frozen):
+        raise ValueError("Frozen candidate contains permanent diagnostic-only corpus identities")
     report = deepcopy(frozen)
     if not report["synthetic"]:
         with store.transaction() as db:

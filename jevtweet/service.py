@@ -20,6 +20,7 @@ from .contracts import (
     uid,
 )
 from .corpus import candidate_key
+from .request_budget import request_budget
 from .settings import Settings
 from .state import audience_by_id, build_state
 from .storage import BudgetError, Store
@@ -42,6 +43,7 @@ class Service:
     def __init__(self, settings: Settings | None = None, provider=None):
         self.settings = settings or Settings()
         self.store = Store(self.settings.data_dir)
+        self.store.restriction_registry_dir = self.settings.account_dir
         self.account_store = Store(self.settings.account_dir)
         self.provider = provider
         self._semaphore = asyncio.Semaphore(self.settings.concurrency)
@@ -145,12 +147,8 @@ class Service:
             error = None
             diagnostics = {}
             # UTF-8 bytes + overhead is a deliberately conservative tokenizer-independent ceiling.
-            tokens = len(canonical({"state": state, "questions": questions}).encode()) + 1024
-            longest = max((len(canonical(q).encode()) for q in questions.values()), default=0)
-            if (
-                tokens > self.settings.max_request_tokens
-                or len(canonical(state).encode()) + longest + 512 > self.settings.max_state_question_tokens
-            ):
+            budget = request_budget(state, questions, self.settings)
+            if not budget["within_limits"]:
                 error = "request_limit"
             elif not state["candidate"]["text"].strip():
                 error = "empty_content"
@@ -165,7 +163,7 @@ class Service:
                                 if not os.getenv("TYPESAFE_API_KEY"):
                                     raise BudgetError("TYPESAFE_API_KEY is not configured")
                                 slot = await self.acquire_account_slot(reservation)
-                                estimate = tokens * self.settings.input_price_per_million / 1_000_000
+                                estimate = budget["per_attempt_usd"]
                                 self.account_store.reserve(
                                     reservation,
                                     estimate,

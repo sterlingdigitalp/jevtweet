@@ -152,3 +152,61 @@ JEVTWEET_E2E_URL=http://127.0.0.1:8001 JEVTWEET_E2E_LIVE=1 npx playwright test t
 ```
 
 Live screenshots/results stay in `private/live-ui/`. Install Chromium once with `npx playwright install chromium` if needed. The normal `npm test` suite skips all external-server/live tests.
+
+## Private snapshot diagnostics
+
+Date-only exports can be audited without inventing publication times, authorship,
+48-hour outcomes or representative sampling. The reusable snapshot adapter preserves
+original bytes and every raw column, stores unwindowed metric sidecars, and prepares
+only original posts explicitly marked as having no media. Replies, quotes and posts
+with media remain preserved with their missing-context limitations. This path keeps
+the baseline audience, profile, questions and scoring unchanged.
+
+Start from a clean committed checkout. The destination must be under `private/` when
+inside the repository. Preparation makes no provider requests and authorizes $0:
+
+```sh
+TYPESAFE_API_KEY='' JEVTWEET_SPEND_LIMIT_USD=0 .venv/bin/jevtweet diagnostic-prepare /path/to/private/export.csv private/corpora/diagnostic_v1
+```
+
+Inspect `OFFLINE_HANDOFF.md`, `data_quality.json`, `protocol.json`, and the request
+and prepared-input JSONL files privately. Cost estimates use the same UTF-8 sizing,
+pinned pricing, question set and retry allowance as the runtime. They are prospective
+reservations, not invoice guarantees. The protocol freezes a seeded, outcome-independent
+order, complete cohort, code/configuration and descriptive analysis plan. Metrics,
+source rank, filename, dates and source annotations are excluded from model input.
+Assessment timestamps record ingestion time; they do not claim pre-publication evidence.
+
+Only after separate owner approval of that exact protocol and its cost estimate:
+
+```sh
+.venv/bin/jevtweet diagnostic-authorize private/corpora/diagnostic_v1 --budget-usd APPROVED_CEILING --approved-by OWNER --note APPROVAL_REFERENCE
+# Configure TYPESAFE_API_KEY and JEVTWEET_SPEND_LIMIT_USD through the existing environment.
+.venv/bin/jevtweet diagnostic-run private/corpora/diagnostic_v1
+.venv/bin/jevtweet diagnostic-report private/corpora/diagnostic_v1
+```
+
+Authorization is an immutable local approval record, not an authentication system.
+An old account ceiling is insufficient. Both the separate pilot ceiling and persistent
+shared-account controls apply. The runner paces requests and retains the first terminal
+result, including failures, partial results and abstentions. Only the service's bounded
+transport retries are allowed; scores and observed popularity never select a retry.
+Resume recovers a unique persisted result or processes unstarted candidates. Unknown
+interrupted requests stop for review with reservations retained. Completed freezes
+cannot be reopened or overwritten. There is no mock fallback.
+
+The report refuses absent/tampered freezes and mock responses. It joins metrics only
+after the first-result freeze, shows full coverage and every limitation, and computes
+only descriptive rank associations on the fully scored initial subset. It does not
+fit probabilities, tune the rubric, claim accuracy, or promote predictors.
+
+Every imported identity is permanently diagnostic-only in private local and shared
+account registries. Evaluation, baselines, reference lineage, saved discovery reports,
+final tests, predictor promotion and forecasts enforce this restriction across rekeys
+and close duplicates. Keep those registries and use the same `JEVTWEET_ACCOUNT_DIR`
+across datasets. Deliberately deleting registries, changing accounts, or arbitrary
+paraphrases outside the existing duplicate policy cannot be certified by this local
+application. Newly collected representative, timestamped, independent-author data
+and an untouched later cohort are still required; the 5,000-row cap and promotion
+thresholds remain unchanged. Keep all actual exports, reports, protocol files and
+judgments out of Git. Tests use original invented records only.

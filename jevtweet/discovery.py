@@ -25,6 +25,7 @@ from .evaluation import (
     fit_model,
     raw_predict,
 )
+from .research_restrictions import report_restrictions
 from .storage import Store
 
 FeatureProvider = Callable[[dict, dict], Awaitable[dict]]
@@ -34,6 +35,8 @@ def _experiment(store: Store, experiment_id: str) -> dict:
     experiment = store.get("experiment", experiment_id)
     if not experiment:
         raise ValueError("Experiment does not exist")
+    if report_restrictions(store, experiment):
+        raise ValueError("Experiment contains permanent diagnostic-only corpus identities")
     if not experiment.get("development_partitions"):
         raise ValueError("Experiment lacks frozen development partitions")
     return experiment

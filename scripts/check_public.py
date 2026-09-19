@@ -21,6 +21,22 @@ for name in filter(None, files):
         any(x in p.parts for x in ("private", "data", "artifacts", "logs", "node_modules", ".venv"))
         or p.suffix in (".db", ".sqlite3", ".pkl", ".joblib")
         or (p.name.startswith(".env") and p.name != ".env.example")
+        or p.name
+        in (
+            "JEVTWEET_CORPUS_PILOT_PROMPT.md",
+            "source_manifest.json",
+            "normalized_source.jsonl",
+            "metric_snapshots.jsonl",
+            "diagnostic_requests.jsonl",
+            "prepared_inputs.jsonl",
+            "judgment_freeze.json",
+            "diagnostic_report.json",
+            "diagnostic_report.md",
+            "diagnostic_table.jsonl",
+            "OFFLINE_HANDOFF.md",
+            "authorization.json",
+            "collection_requirements.md",
+        )
     ):
         blocked.append(name + ": private path")
         continue

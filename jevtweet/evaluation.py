@@ -107,6 +107,7 @@ def historical_baseline(
     for o in outcomes:
         by_candidate[_key(o)].append(o)
     history = []
+    history_identities = []
     seen_posts = set()
     for c in sorted(candidates, key=lambda c: c.get("published_at") or "", reverse=True):
         if (
@@ -140,11 +141,13 @@ def historical_baseline(
             continue
         seen_posts.add(c["candidate_id"])
         history.append(chosen)
+        history_identities.append(_holdout_identity(dict(c, key=_key(c))))
         if len(history) >= definition["maximum_baseline_posts"]:
             break
     result = {
         "baseline_sample_count": len(history),
         "baseline_observation_ids": [o["observation_id"] for o in history],
+        "baseline_identities": history_identities,
         "baseline_post_type_policy": definition["post_type_policy"],
         "source": source,
     }
@@ -385,10 +388,13 @@ def _select_judgments(store: Store, *, synthetic: bool, cohort: dict | None = No
     valid retry; later successes never replace that first qualifying result. All
     attempts remain in the audit and candidate-level failure coverage denominator.
     """
+    from .research_restrictions import REASON, restricted_candidates
+
     cohort = cohort or {}
     if set(cohort) - COHORT_FIELDS:
         raise ValueError("Unknown cohort filter; use explicit judgment configuration fields")
     candidates = store.list("candidate")
+    restrictions = restricted_candidates(store, candidates)
     runs = {r.get("judgment_id"): r for r in store.list("run") if r.get("judgment_id")}
     judgments = defaultdict(list)
     for judgment in store.list("judgment"):
@@ -397,6 +403,23 @@ def _select_judgments(store: Store, *, synthetic: bool, cohort: dict | None = No
     candidate_attempts, failed_candidates, missing_candidates = set(), set(), set()
     for candidate in candidates:
         key = _key(candidate)
+        if key in restrictions:
+            exclusions.append(dict(key=key, **restrictions[key]))
+            for judgment in judgments.get(key, []):
+                attempts.append(
+                    {
+                        "key": key,
+                        "judgment_id": judgment["judgment_id"],
+                        "selected": False,
+                        "reason": REASON,
+                        "created_at": judgment.get("created_at"),
+                        "execution_mode": judgment.get("execution_mode"),
+                        "status": judgment.get("status"),
+                    }
+                )
+                candidate_attempts.add(key)
+            missing_candidates.add(key)
+            continue
         if bool(candidate.get("synthetic")) != synthetic:
             exclusions.append({"key": key, "reason": "synthetic_real_cohort_separation"})
             continue
@@ -411,10 +434,15 @@ def _select_judgments(store: Store, *, synthetic: bool, cohort: dict | None = No
         candidate_reasons = []
         for judgment in options:
             candidate_attempts.add(key)
+            run = runs.get(judgment["judgment_id"])
             if any(judgment.get(k) != v for k, v in cohort.items() if k != "outcome_source"):
                 reason = "outside_explicit_judgment_configuration"
+            elif run and restricted_candidates(
+                store, run.get("request", {}).get("context", {}).get("references", [])
+            ):
+                reason = "permanent_diagnostic_only_reference"
             else:
-                reason = _attempt_rejection(candidate, judgment, runs.get(judgment["judgment_id"]), synthetic)
+                reason = _attempt_rejection(candidate, judgment, run, synthetic)
             if reason is None and chosen is None:
                 chosen = {"candidate": candidate, "judgment": judgment, "run": runs[judgment["judgment_id"]]}
                 selected.append(chosen)
@@ -454,6 +482,7 @@ def _select_judgments(store: Store, *, synthetic: bool, cohort: dict | None = No
         "selected": selected,
         "candidates": candidates,
         "exclusions": exclusions,
+        "research_restrictions": restrictions,
         "judgment_selection_policy": JUDGMENT_SELECTION_POLICY,
         "judgment_attempts": attempts,
         "failure_coverage": {
@@ -467,6 +496,7 @@ def _select_judgments(store: Store, *, synthetic: bool, cohort: dict | None = No
                     "earliest_qualifying_attempt",
                     "later_qualifying_attempt_not_selected",
                     "outside_explicit_judgment_configuration",
+                    REASON,
                 )
                 for a in attempts
             ),
@@ -543,12 +573,15 @@ def build_dataset(
     max_rows: int = 5000,
     cohort: dict | None = None,
 ) -> dict:
+    from .research_restrictions import research_outcomes
+
     selection = _select_judgments(store, synthetic=synthetic, cohort=cohort)
     selected, candidates = selection.pop("selected"), selection.pop("candidates")
+    research_candidates, outcomes = research_outcomes(store, candidates)
     rows, labels, rejected = _label_selected(
         selected,
-        candidates,
-        store.list("outcome"),
+        research_candidates,
+        outcomes,
         task=task,
         outcome_source=(cohort or {}).get("outcome_source"),
     )
@@ -1468,6 +1501,8 @@ def _promotion_gates(report: dict) -> dict:
 
 
 def promote(store: Store, experiment_id: str, *, approved_by: str, rationale: str) -> dict:
+    from .research_restrictions import REASON, report_restrictions
+
     report = store.get("experiment", experiment_id)
     if not report:
         raise ValueError("Experiment does not exist")
@@ -1478,6 +1513,8 @@ def promote(store: Store, experiment_id: str, *, approved_by: str, rationale: st
         if report.get("status") == "evaluated"
         else {"eligible": False, "reasons": ["experiment_not_evaluated"]}
     )
+    if report_restrictions(store, report):
+        gates = dict(gates, eligible=False, reasons=[*gates["reasons"], REASON])
     decision = {
         "event": "manual_promotion_decision",
         "at": now().isoformat(),
@@ -1523,10 +1560,14 @@ def promote(store: Store, experiment_id: str, *, approved_by: str, rationale: st
 
 def _predictor_lineage_errors(store: Store, predictor: dict) -> list[str]:
     """A boolean stored on a predictor is insufficient authorization to forecast."""
+    from .research_restrictions import report_restrictions
+
     report = store.get("experiment", predictor.get("predictor_id", ""))
     if not report or report.get("status") != "evaluated" or not report.get("promotion", {}).get("approved"):
         return ["Predictor has no approved originating evaluation"]
     try:
+        if report_restrictions(store, report):
+            return ["Originating evaluation contains permanent diagnostic-only corpus identities"]
         if not _promotion_gates(report)["eligible"]:
             return ["Originating evaluation no longer satisfies frozen evidence gates"]
         if (
@@ -1595,6 +1636,8 @@ def compatible_predictors(
 def predict(
     store: Store, judgment_id: str, *, predictor_id: str | None = None, task: str | None = None
 ) -> dict:
+    from .research_restrictions import research_outcomes, restricted_candidates
+
     unavailable = {
         "mode": "forecast",
         "available": False,
@@ -1659,6 +1702,10 @@ def predict(
         return dict(unavailable, reason="Prediction context is unavailable")
     request = runs[0]["request"]
     candidate, context = request["candidate"], request["context"]
+    if restricted_candidates(store, [candidate, *context.get("references", [])]):
+        return dict(
+            unavailable, reason="Candidate or reference belongs to a permanent diagnostic-only corpus"
+        )
     if any(
         record.get("schema_version", SUPPORTED_SCHEMA) != SUPPORTED_SCHEMA
         for record in (candidate, request, context)
@@ -1689,11 +1736,12 @@ def predict(
         candidate["published_at"]
     ):
         return dict(unavailable, reason="Prediction cutoff follows publication")
+    research_candidates, outcomes = research_outcomes(store, store.list("candidate"))
     baseline = historical_baseline(
         candidate,
         context,
-        store.list("candidate"),
-        store.list("outcome"),
+        research_candidates,
+        outcomes,
         source=source,
         task=predictor["task"],
     )

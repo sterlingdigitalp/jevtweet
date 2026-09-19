@@ -17,6 +17,9 @@ const responseFor = (page: Page, path: string) =>
     (response) =>
       new URL(response.url()).pathname === path &&
       response.request().method() === "POST",
+    // CPU-bound mock evaluation can exceed the UI action timeout on hosted CI.
+    // Still require the actual backend response and all existing result assertions.
+    { timeout: 60_000 },
   );
 // All tests share one disposable backend. Freeze the generated fixture before imports
 // create corpus candidates; serial execution makes this prerequisite deterministic.

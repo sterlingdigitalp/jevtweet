@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { api, number, percent, readable } from "./api";
 import { Badge, Empty, ErrorBox, Fact, JsonView } from "./components";
 import type { Report, Session } from "./types";
@@ -10,6 +10,88 @@ const record = (v: unknown): Report =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Report) : {};
 const metric = (v: unknown) =>
   typeof v === "number" ? number(v, 4) : "Undefined";
+function ReliabilityPlot({ name, bands }: { name: string; bands: unknown[] }) {
+  const titleId = useId();
+  const points = bands
+    .map(record)
+    .filter(
+      (b) =>
+        typeof b.rows === "number" &&
+        b.rows > 0 &&
+        typeof b.mean_probability === "number" &&
+        Number.isFinite(b.mean_probability) &&
+        b.mean_probability >= 0 &&
+        b.mean_probability <= 1 &&
+        typeof b.observed_rate === "number" &&
+        Number.isFinite(b.observed_rate) &&
+        b.observed_rate >= 0 &&
+        b.observed_rate <= 1,
+    );
+  if (!points.length)
+    return (
+      <p className="muted">
+        No nonempty probability bands are available to plot.
+      </p>
+    );
+  const x = (probability: number) => 45 + 245 * probability;
+  const y = (rate: number) => 215 - 180 * rate;
+  return (
+    <figure className="reliability-plot">
+      <svg viewBox="0 0 320 265" role="img" aria-labelledby={titleId}>
+        <title id={titleId}>
+          {readable(name)} reliability: mean predicted probability versus
+          observed outcome rate. Only nonempty bands are plotted.
+        </title>
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
+          <g key={tick}>
+            <line x1="45" y1={y(tick)} x2="290" y2={y(tick)} stroke="#dce2d9" />
+            <text x="37" y={y(tick) + 3} textAnchor="end">
+              {tick}
+            </text>
+            <text x={x(tick)} y="232" textAnchor="middle">
+              {tick}
+            </text>
+          </g>
+        ))}
+        <line x1="45" y1="215" x2="290" y2="215" stroke="#687c68" />
+        <line x1="45" y1="215" x2="45" y2="35" stroke="#687c68" />
+        <line
+          x1="45"
+          y1="215"
+          x2="290"
+          y2="35"
+          stroke="#9caa8e"
+          strokeDasharray="5 5"
+        />
+        {points.map((band, index) => (
+          <circle
+            key={index}
+            cx={x(band.mean_probability as number)}
+            cy={y(band.observed_rate as number)}
+            r="4"
+            fill="#245d43"
+          >
+            <title>
+              {String(band.rows)} observations; mean probability{" "}
+              {metric(band.mean_probability)}; observed rate{" "}
+              {metric(band.observed_rate)}
+            </title>
+          </circle>
+        ))}
+        <text x="168" y="253" textAnchor="middle">
+          Mean predicted probability
+        </text>
+        <text transform="translate(13 125) rotate(-90)" textAnchor="middle">
+          Observed outcome rate
+        </text>
+      </svg>
+      <figcaption>
+        Dashed diagonal: matching probability and observed rate. Each point is a
+        nonempty band; exact values and sample sizes are below.
+      </figcaption>
+    </figure>
+  );
+}
 function EvidenceSummary({ report }: { report: Report }) {
   const eligibility = record(report.eligibility);
   const counts = record(record(report.split_manifest).counts);
@@ -96,6 +178,7 @@ function EvidenceSummary({ report }: { report: Report }) {
             return (
               <details className="json-view" key={name}>
                 <summary>{readable(name)} · calibration observations</summary>
+                <ReliabilityPlot name={name} bands={bands} />
                 <div className="table-scroll">
                   <table>
                     <thead>

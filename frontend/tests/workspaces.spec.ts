@@ -262,6 +262,12 @@ test("preview, import, batch, nullable outcomes and filtered export", async ({
   });
   await page.route("**/api/jobs", (route) => {
     if (route.request().method() === "POST") {
+      expect(Object.keys(route.request().postDataJSON()).sort()).toEqual([
+        "audience_id",
+        "candidate_ids",
+        "execution_mode",
+        "profile_id",
+      ]);
       expect(route.request().postDataJSON().candidate_ids).toEqual([
         "synthetic-candidate:1",
       ]);
@@ -336,6 +342,22 @@ test("experiment evidence is visibly synthetic and cannot promote itself", async
         pr_auc: 0.2,
         roc_auc: 0.5,
         top_10pct: { lift: 1 },
+        reliability: [
+          {
+            lower: 0,
+            upper: 0.5,
+            rows: 30,
+            mean_probability: 0.2,
+            observed_rate: 0.2,
+          },
+          {
+            lower: 0.5,
+            upper: 1,
+            rows: 0,
+            mean_probability: null,
+            observed_rate: null,
+          },
+        ],
       },
     },
     promotion: {
@@ -355,6 +377,13 @@ test("experiment evidence is visibly synthetic and cannot promote itself", async
     page.getByText("SYNTHETIC DEMONSTRATION", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Same-cohort method comparison")).toBeVisible();
+  await page
+    .getByText("Metadata Only · calibration observations", { exact: true })
+    .click();
+  await expect(
+    page.getByRole("img", { name: /Metadata Only reliability/ }),
+  ).toBeVisible();
+  await expect(page.locator(".reliability-plot circle")).toHaveCount(1);
   await expect(
     page.getByText("Synthetic demonstration cannot earn promotion.", {
       exact: false,

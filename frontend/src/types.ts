@@ -59,6 +59,8 @@ export interface Judgment {
   candidate_id: string;
   candidate_version: number;
   status: string;
+  evidence_completeness?: "complete" | "partial" | "unknown";
+  execution_status?: "succeeded" | "partial" | "failed" | "not_attempted";
   execution_mode: Mode;
   mode: string;
   profile_id: string;

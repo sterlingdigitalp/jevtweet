@@ -478,8 +478,6 @@ export default function Corpus({
                   audience_id: audience,
                   profile_id: profile,
                   execution_mode: mode,
-                  audience_version: version ?? "",
-                  rubric_version: config.rubric.version,
                 });
                 setSelected([]);
                 await reload();

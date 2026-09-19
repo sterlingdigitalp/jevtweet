@@ -6,16 +6,18 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:5197",
+    baseURL: process.env.JEVTWEET_E2E_URL ?? "http://127.0.0.1:5197",
     headless: true,
     trace: "off",
     screenshot: "off",
   },
-  webServer: {
-    command: "npm run dev -- --port 5197 --strictPort",
-    url: "http://127.0.0.1:5197",
-    reuseExistingServer: false,
-  },
+  webServer: process.env.JEVTWEET_E2E_URL
+    ? undefined
+    : {
+        command: "npm run dev -- --port 5197 --strictPort",
+        url: "http://127.0.0.1:5197",
+        reuseExistingServer: false,
+      },
   projects: [
     {
       name: "chromium",

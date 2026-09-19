@@ -1392,3 +1392,22 @@ td details pre {
     grid-template-columns: 1fr;
   }
 }
+
+.reliability-plot {
+  max-width: 440px;
+  margin: 12px auto 24px;
+}
+.reliability-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.reliability-plot text {
+  font-size: 10px;
+  fill: #66776c;
+}
+.reliability-plot figcaption {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.65;
+}

@@ -9,7 +9,8 @@
     "test": "playwright test",
     "preview": "vite preview --host 127.0.0.1",
     "format": "prettier --write src tests *.ts *.json index.html",
-    "format:check": "prettier --check src tests *.ts *.json index.html"
+    "format:check": "prettier --check src tests *.ts *.json index.html",
+    "test:integration": "playwright test tests/integration.spec.ts"
   },
   "dependencies": {
     "react": "19.1.1",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@types/node": "24.5.2",
     "@types/react": "19.1.13",
     "@types/react-dom": "19.1.9",
     "@vitejs/plugin-react": "5.0.3",

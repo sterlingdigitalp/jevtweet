@@ -232,9 +232,19 @@ export function Result({
         <Fact
           label="Evidence completeness"
           value={
-            j.status === "scored"
-              ? "Required factors available"
-              : "Incomplete / unavailable"
+            j.evidence_completeness
+              ? readable(j.evidence_completeness)
+              : j.status === "scored"
+                ? "Required factors available"
+                : "Incomplete / unavailable"
+          }
+        />
+        <Fact
+          label="Execution status"
+          value={
+            j.execution_status
+              ? readable(j.execution_status)
+              : readable(j.status)
           }
         />
       </div>

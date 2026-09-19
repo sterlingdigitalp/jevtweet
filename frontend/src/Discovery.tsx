@@ -4,7 +4,7 @@ import { ErrorBox, JsonView } from "./components";
 import type { Report } from "./types";
 export default function Discovery({ experimentId }: { experimentId: string }) {
   const [proposals, setProposals] = useState("[]");
-  const [cost, setCost] = useState("0");
+  const [cost, setCost] = useState("0.10");
   const [rows, setRows] = useState("50");
   const [requests, setRequests] = useState("50");
   const [busy, setBusy] = useState(false);
@@ -99,7 +99,7 @@ export default function Discovery({ experimentId }: { experimentId: string }) {
                 <input
                   required
                   type="number"
-                  min="0"
+                  min="0.01"
                   max="1"
                   step="0.01"
                   value={cost}
@@ -111,7 +111,7 @@ export default function Discovery({ experimentId }: { experimentId: string }) {
                 <input
                   required
                   type="number"
-                  min="1"
+                  min="24"
                   max="1000"
                   value={rows}
                   onChange={(e) => setRows(e.target.value)}

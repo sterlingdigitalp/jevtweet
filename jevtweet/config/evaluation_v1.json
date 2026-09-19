@@ -1,0 +1,34 @@
+{
+  "version": "evaluation_v1",
+  "label_definitions": {
+    "breakout_48h_v1": {"absolute_views": 10000, "relative_multiplier": 10.0, "window_hours": 48.0, "window_tolerance_hours": 1.0, "minimum_baseline_posts": 10, "maximum_baseline_posts": 20, "post_type_policy": "same_author_same_post_type_organic_same_metric_source", "metric": "views"},
+    "absolute_48h_v1": {"absolute_views": 10000, "window_hours": 48.0, "window_tolerance_hours": 1.0, "minimum_baseline_posts": 0, "maximum_baseline_posts": 20, "post_type_policy": "same_author_same_post_type_organic_same_metric_source", "metric": "views"}
+  },
+  "split_fractions": {"train": 0.5, "selection": 0.15, "calibration": 0.15, "test": 0.2},
+  "logistic_c_candidates": [0.1, 1.0, 10.0],
+  "author_holdout_fraction": 0.2,
+  "bootstrap_replicates": 200,
+  "bootstrap_seed": 20260918,
+  "minimum_partition_rows": 12,
+  "minimum_partition_positives": 2,
+  "minimum_partition_negatives": 2,
+  "tier_probability_boundaries": [0.01, 0.05, 0.15, 0.35],
+  "tier_semantics": ["Under 1%", "1% to under 5%", "5% to under 15%", "15% to under 35%", "35% or higher"],
+  "promotion_policy": {
+    "version": "promotion_v1",
+    "minimum_eligible_rows": 1000,
+    "minimum_test_rows": 200,
+    "minimum_test_positives": 40,
+    "minimum_test_negatives": 40,
+    "minimum_test_author_clusters": 20,
+    "maximum_expected_calibration_error": 0.05,
+    "maximum_calibration_gap_ci_upper": 0.10,
+    "minimum_relative_brier_improvement": 0.02,
+    "require_positive_paired_brier_improvement_ci": true,
+    "minimum_author_holdout_rows": 50,
+    "minimum_author_holdout_positives": 10,
+    "minimum_author_holdout_negatives": 10,
+    "rationale": "Counts alone cannot establish utility. Require representative provenance, independent mature labels, predeclared single-use holdout, author-cluster uncertainty, calibrated probabilities and positive paired Brier improvement over metadata. Wide intervals, small author support or failed calibration block promotion. A prospective cohort is needed for subsequent tuning."
+  },
+  "discovery": {"maximum_iterations": 5, "maximum_proposals": 8, "maximum_active_semantic_features": 24, "minimum_log_loss_improvement": 0.005, "maximum_absolute_correlation": 0.95, "minimum_complete_fraction": 0.9}
+}

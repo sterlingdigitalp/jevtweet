@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "annotation_id": {
+      "title": "Annotation Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_version": {
+      "default": 1,
+      "title": "Candidate Version",
+      "type": "integer"
+    },
+    "rating": {
+      "maximum": 5,
+      "minimum": 1,
+      "title": "Rating",
+      "type": "integer"
+    },
+    "annotator": {
+      "title": "Annotator",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "rating",
+    "annotator"
+  ],
+  "title": "Annotation",
+  "type": "object"
+}

@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "synthetic": {
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "task": {
+      "default": "breakout_48h_v1",
+      "enum": [
+        "breakout_48h_v1",
+        "absolute_48h_v1"
+      ],
+      "title": "Task",
+      "type": "string"
+    },
+    "representative_sampling": {
+      "default": false,
+      "title": "Representative Sampling",
+      "type": "boolean"
+    },
+    "comparison_population": {
+      "default": "",
+      "title": "Comparison Population",
+      "type": "string"
+    },
+    "cohort": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cohort"
+    }
+  },
+  "title": "EvaluationRequest",
+  "type": "object"
+}

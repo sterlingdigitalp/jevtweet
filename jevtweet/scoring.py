@@ -1,4 +1,5 @@
 """Authoritative deterministic editorial calculation; never a breakout forecast."""
+
 from __future__ import annotations
 
 import math
@@ -15,14 +16,14 @@ def _available(factor: Factor | None, expected_type: str) -> bool:
         return isinstance(value, str) and bool(value)
     maximum = 4 if expected_type == "score" else 1
     return (
-        isinstance(value, (int, float)) and not isinstance(value, bool)
-        and math.isfinite(value) and 0 <= value <= maximum
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0 <= value <= maximum
     )
 
 
-def score(
-    factors: dict[str, Factor], profile_id: str, *, missing_evidence: list[str] | None = None
-) -> dict:
+def score(factors: dict[str, Factor], profile_id: str, *, missing_evidence: list[str] | None = None) -> dict:
     """Return the Judgment fields owned by editorial policy.
 
     No normalization over an incomplete subset, no confidence weighting, and no
@@ -31,12 +32,21 @@ def score(
     rubric = load_rubric()
     if profile_id not in rubric["profiles"]:
         raise ValueError(f"Unknown editorial profile: {profile_id}")
+    factors = dict(factors)
+    if profile_id == "reference_enriched_v1":
+        adequacy = factors.get("reference_adequacy")
+        if not _available(adequacy, "choice") or adequacy.choice != "adequate":
+            if "distinctiveness" in factors:
+                factors["distinctiveness"] = factors["distinctiveness"].model_copy(
+                    update={"assessability": "not_assessable", "error": "inadequate_reference_set"}
+                )
     policy = rubric["policy"]
     required = rubric["profiles"][profile_id]
     missing = list(dict.fromkeys(missing_evidence or []))
     unavailable = [key for key in required if not _available(factors.get(key), "score")]
     missing_checks = [
-        key for key in rubric["required_checks"]
+        key
+        for key in rubric["required_checks"] + rubric["profile_checks"][profile_id]
         if not _available(factors.get(key), rubric["questions"][key]["type"])
     ]
     flags = [f"missing_factor:{key}" for key in unavailable]
@@ -65,10 +75,20 @@ def score(
     # These are evidence absences, not judgments about quality. Nonessential
     # absences (e.g. history) are disclosed without changing the editorial score.
     blocked_evidence = [
-        item for item in missing if item in {
-            "empty_content", "empty_text", "essential_media", "missing_essential_media",
-            "parent_context", "quoted_context", "missing_context", "essential_context",
-        } or "essential" in item
+        item
+        for item in missing
+        if item
+        in {
+            "empty_content",
+            "empty_text",
+            "essential_media",
+            "missing_essential_media",
+            "parent_context",
+            "quoted_context",
+            "missing_context",
+            "essential_context",
+        }
+        or "essential" in item
     ]
     if profile_id == "reference_enriched_v1" and any("reference" in item for item in missing):
         blocked_evidence.extend(item for item in missing if "reference" in item)
@@ -81,20 +101,26 @@ def score(
             raw = factor.score
             nearest = min(4, max(0, math.floor(raw + 0.5)))
             weight = policy["positive_weights"][key]
-            contributions.append({
-                "question_id": key,
-                "label": rubric["questions"][key]["label"],
-                "raw_score": raw,
-                "normalized": raw / 4,
-                "weight": weight,
-                "quality_contribution": raw / 4 * weight / denominator,
-                "nearest_criterion_index": nearest,
-                "nearest_criterion": rubric["questions"][key]["criteria"][nearest],
-            })
+            contributions.append(
+                {
+                    "question_id": key,
+                    "label": rubric["questions"][key]["label"],
+                    "raw_score": raw,
+                    "normalized": raw / 4,
+                    "weight": weight,
+                    "quality_contribution": raw / 4 * weight / denominator,
+                    "nearest_criterion_index": nearest,
+                    "nearest_criterion": rubric["questions"][key]["criteria"][nearest],
+                }
+            )
     ordered = sorted(contributions, key=lambda part: (-part["normalized"], part["question_id"]))
     valid_aversion = _available(factors.get("aversion"), "score")
     penalty = factors["aversion"].score / 4 * policy["aversion_penalty"] if valid_aversion else None
-    quality = math.fsum(part["quality_contribution"] for part in contributions) if len(contributions) == len(positives) else None
+    quality = (
+        math.fsum(part["quality_contribution"] for part in contributions)
+        if len(contributions) == len(positives)
+        else None
+    )
     complete = not (unavailable or missing_checks or blocked_evidence or context_blocked) and assessable
     continuous = 1 + 4 * min(1, max(0, quality - penalty)) if complete else None
     integer = min(5, max(1, math.floor(continuous + 0.5))) if continuous is not None else None
@@ -113,13 +139,21 @@ def score(
     if penalty and penalty > 0:
         prompts.append(rubric["review_prompts"]["aversion"])
     if blocked_evidence or context_blocked:
-        prompts.append("Supply the missing essential context or media description, then request a new judgment.")
+        prompts.append(
+            "Supply the missing essential context or media description, then request a new judgment."
+        )
     if "distinctiveness" in unavailable:
-        prompts.append("Supply an adequate relevant reference set, or explicitly request a separate core-profile judgment.")
+        prompts.append(
+            "Supply an adequate relevant reference set, or explicitly request a separate core-profile judgment."
+        )
     if any(flag.startswith("low_answer_certainty:") for flag in flags):
-        prompts.append("Inspect uncertain factor distributions; answer certainty does not measure forecast accuracy.")
+        prompts.append(
+            "Inspect uncertain factor distributions; answer certainty does not measure forecast accuracy."
+        )
     if "instruction_like_content" in flags:
-        prompts.append("Review instruction-like source text; the detector does not guarantee injection safety.")
+        prompts.append(
+            "Review instruction-like source text; the detector does not guarantee injection safety."
+        )
     explanation = {
         "meaning": "Editorial potential — not a calibrated probability.",
         "scope": "Explanation of this rubric calculation, not a causal explanation of future distribution.",

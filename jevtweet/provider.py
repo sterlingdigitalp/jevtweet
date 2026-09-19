@@ -4,6 +4,7 @@ The runtime owns request admission, account-wide limiting, spending reservations
 timeouts, and capped retries. This module performs exactly one SDK attempt and
 never falls back to another model or execution mode.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -75,22 +76,26 @@ def _score_precision(score: float, probabilities: dict[str, float], validation: 
     rejection = "invalid_distribution_sum" if not valid_sum else "score_distribution_mismatch"
     scale = 10 ** validation["rounded_decimal_places"]
     if not all(
-        math.isclose(value * scale, round(value * scale), rel_tol=0,
-                     abs_tol=validation["quantization_absolute_tolerance"])
+        math.isclose(
+            value * scale,
+            round(value * scale),
+            rel_tol=0,
+            abs_tol=validation["quantization_absolute_tolerance"],
+        )
         for value in [score, *probabilities.values()]
     ):
         raise ValueError(rejection)
-    half_unit = .5 / scale
+    half_unit = 0.5 / scale
     slack = validation["interval_feasibility_absolute_tolerance"]
     levels = sorted(int(level) for level in probabilities)
-    lower = {level: max(0., probabilities[str(level)] - half_unit) for level in levels}
-    upper = {level: min(1., probabilities[str(level)] + half_unit) for level in levels}
+    lower = {level: max(0.0, probabilities[str(level)] - half_unit) for level in levels}
+    upper = {level: min(1.0, probabilities[str(level)] + half_unit) for level in levels}
     lower_sum = math.fsum(lower.values())
     if lower_sum > 1 + slack or math.fsum(upper.values()) < 1 - slack:
         raise ValueError("invalid_distribution_sum")
 
     def extreme(order: list[int]) -> float:
-        remaining = max(0., 1 - lower_sum)
+        remaining = max(0.0, 1 - lower_sum)
         weights = lower.copy()
         for level in order:
             addition = min(remaining, upper[level] - lower[level])
@@ -99,7 +104,7 @@ def _score_precision(score: float, probabilities: dict[str, float], validation: 
         return math.fsum(level * weight for level, weight in weights.items())
 
     minimum_mean, maximum_mean = extreme(levels), extreme(list(reversed(levels)))
-    score_low, score_high = max(0., score - half_unit), min(float(max(levels)), score + half_unit)
+    score_low, score_high = max(0.0, score - half_unit), min(float(max(levels)), score + half_unit)
     if score_high < minimum_mean - slack or score_low > maximum_mean + slack:
         raise ValueError("score_distribution_mismatch")
     return {
@@ -141,7 +146,11 @@ def _evidence_paths(state: dict, question_id: str) -> list[str]:
     if state.get("topic"):
         paths.append("topic")
     if question_id == "distinctiveness":
-        paths.extend(f"reference:{ref['candidate_id']}" for ref in state.get("references", []) if ref.get("candidate_id"))
+        paths.extend(
+            f"reference:{ref['candidate_id']}"
+            for ref in state.get("references", [])
+            if ref.get("candidate_id")
+        )
     return paths
 
 
@@ -205,8 +214,12 @@ def validate_response(raw: Any, questions: dict, model: str, state: dict | None 
                 # The v1 Factor contract deliberately supports five-level Scores.
                 if len(spec["criteria"]) != 5 or not all(isinstance(item, str) for item in spec["criteria"]):
                     raise ValueError("unsupported_score_rubric")
-                factor_args.update(score=value, confidence=_number(answer["confidence"]),
-                                   probabilities=probabilities, legend=legend)
+                factor_args.update(
+                    score=value,
+                    confidence=_number(answer["confidence"]),
+                    probabilities=probabilities,
+                    legend=legend,
+                )
                 precision_note = _score_precision(value, probabilities, validation)
                 if precision_note is not None:
                     precision_notes[key] = precision_note
@@ -219,19 +232,28 @@ def validate_response(raw: Any, questions: dict, model: str, state: dict | None 
                     raise ValueError("unknown_choice")
                 if probabilities[choice] + tolerance < max(probabilities.values()):
                     raise ValueError("choice_distribution_mismatch")
-                factor_args.update(choice=choice, confidence=_number(answer["confidence"]), probabilities=probabilities)
+                factor_args.update(
+                    choice=choice, confidence=_number(answer["confidence"]), probabilities=probabilities
+                )
             else:
                 if set(answer) != {"type", "noul"}:
                     raise ValueError("invalid_noul_fields")
                 factor_args["noul"] = _number(answer["noul"])
             if state is not None:
                 factor_args["evidence_references"] = _evidence_paths(state, key)
-                if key == "distinctiveness" and reference_count(state) < rubric["policy"]["minimum_references"]:
+                if (
+                    key == "distinctiveness"
+                    and reference_count(state) < rubric["policy"]["minimum_references"]
+                ):
                     factor_args["assessability"] = "not_assessable"
                     factor_args["error"] = "insufficient_references"
             factors[key] = Factor(**factor_args)
         except (ValueError, TypeError, KeyError) as exc:
-            reason = str(exc) if isinstance(exc, ValueError) and type(exc) is ValueError else "invalid_answer_schema"
+            reason = (
+                str(exc)
+                if isinstance(exc, ValueError) and type(exc) is ValueError
+                else "invalid_answer_schema"
+            )
             factors[key] = _unavailable(key, spec, reason)
             diagnostics.setdefault("invalid_answers", {})[key] = reason
     has_errors = bool(diagnostics)
@@ -284,15 +306,21 @@ class TypeSafeProvider:
         if version("typesafe-sdk") != SDK_VERSION:
             raise ProviderError("sdk_version_mismatch")
         from typesafe_sdk import (
-            AsyncTypeSafeClient, Choice, Noul, RetryPolicy, Score,
-            TypeSafeAPIConnectionError, TypeSafeAPIError,
-            TypeSafeAPIResponseValidationError, TypeSafeAPITimeoutError, TypeSafeError,
+            AsyncTypeSafeClient,
+            Choice,
+            Noul,
+            RetryPolicy,
+            Score,
+            TypeSafeAPIConnectionError,
+            TypeSafeAPIError,
+            TypeSafeAPIResponseValidationError,
+            TypeSafeAPITimeoutError,
+            TypeSafeError,
         )
+
         try:
             constructors = {"score": Score, "choice": Choice, "noul": Noul}
-            typed_questions = {
-                key: constructors[spec["type"]](**spec) for key, spec in questions.items()
-            }
+            typed_questions = {key: constructors[spec["type"]](**spec) for key, spec in questions.items()}
             if not typed_questions:
                 raise ProviderError("empty_questions")
             async with AsyncTypeSafeClient(
@@ -303,7 +331,9 @@ class TypeSafeProvider:
                 # content or credentials to another service.
                 base_url=API_BASE_URL,
             ) as client:
-                response = await client.system_one(state=state, questions=typed_questions, model=self.settings.model)
+                response = await client.system_one(
+                    state=state, questions=typed_questions, model=self.settings.model
+                )
                 raw = response.raw_http_response.json()
         except TypeSafeAPIResponseValidationError as exc:
             raw = exc.body
@@ -323,12 +353,19 @@ class TypeSafeProvider:
         except TypeSafeAPIError as exc:
             status = exc.status
             category = {
-                400: "request_schema", 401: "authentication", 402: "provider_credit",
-                403: "permission", 404: "model_or_endpoint_unavailable", 422: "request_schema",
+                400: "request_schema",
+                401: "authentication",
+                402: "provider_credit",
+                403: "permission",
+                404: "model_or_endpoint_unavailable",
+                422: "request_schema",
                 429: "rate_limit",
             }.get(status, "provider_server" if status >= 500 else "provider_http")
-            raise ProviderError(category, retryable=status in {408, 429} or 500 <= status <= 599,
-                                retry_after=_retry_after(exc.headers)) from None
+            raise ProviderError(
+                category,
+                retryable=status in {408, 429} or 500 <= status <= 599,
+                retry_after=_retry_after(exc.headers),
+            ) from None
         except TypeSafeError:
             raise ProviderError("sdk_request") from None
         except (ValueError, TypeError, KeyError):
@@ -345,7 +382,9 @@ class MockProvider:
 
     async def ask(self, state: dict, questions: dict) -> ProviderResult:
         candidate = state.get("candidate", {})
-        empty = not str(candidate.get("text", "")).strip() and not candidate.get("media", {}).get("description")
+        empty = not str(candidate.get("text", "")).strip() and not candidate.get("media", {}).get(
+            "description"
+        )
         missing = state.get("evidence", {}).get("missing", [])
         essential = any("essential" in item for item in missing)
         answers = {}
@@ -354,16 +393,28 @@ class MockProvider:
             if spec["type"] == "score":
                 value = 0 if empty else seed[0] % 5
                 answers[key] = {
-                    "type": "score", "score": value, "confidence": 1.0,
+                    "type": "score",
+                    "score": value,
+                    "confidence": 1.0,
                     "probabilities": {str(index): float(index == value) for index in range(5)},
                     "legend": {str(index): criterion for index, criterion in enumerate(spec["criteria"])},
                 }
             elif spec["type"] == "choice":
                 choice = "not_assessable" if empty or essential else "assessable"
-                if key != "assessability":
+                if key == "reference_adequacy":
+                    choice = (
+                        "adequate"
+                        if reference_count(state) >= load_rubric()["policy"]["minimum_references"]
+                        else "not_assessable"
+                    )
+                elif key != "assessability":
                     choice = list(spec["criteria"])[seed[0] % len(spec["criteria"])]
-                answers[key] = {"type": "choice", "choice": choice, "confidence": 1.0,
-                                "probabilities": {option: float(option == choice) for option in spec["criteria"]}}
+                answers[key] = {
+                    "type": "choice",
+                    "choice": choice,
+                    "confidence": 1.0,
+                    "probabilities": {option: float(option == choice) for option in spec["criteria"]},
+                }
             else:
                 # These fixed guard answers are fixture mechanics, not a text
                 # injection detector or evidence-completeness model.
@@ -373,5 +424,7 @@ class MockProvider:
                 answers[key] = {"type": "noul", "noul": value}
         raw = {"model": self.name, "answers": answers, "usage": {"input_tokens": 0, "output_tokens": 0}}
         result = validate_response(raw, questions, self.name, state)
-        result.diagnostics["synthetic_notice"] = "Deterministic hash fixtures; not Jev judgments or predictive evidence."
+        result.diagnostics["synthetic_notice"] = (
+            "Deterministic hash fixtures; not Jev judgments or predictive evidence."
+        )
         return result

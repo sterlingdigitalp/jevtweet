@@ -16,3 +16,12 @@ Retrieved 2026-09-18. The build brief remains the initial product specification.
 ## Initial decisions
 
 Strict input allowlists and UTC availability timestamps; private SQLite with migration and immutable version identities; explicit mock/live; one backend scoring function; profiles and thresholds versioned together. Default seeded personas are hypotheses. Evaluation mechanics on synthetic data establish no predictive claim.
+
+## Integration findings
+
+- SDK 0.7.0 may coerce response scalar fields or omit unknown answer types. The adapter validates original wire JSON, preserving independently valid factors and storing malformed payloads only in the private database.
+- Live contract discrepancy: independently displayed two-decimal scores and distributions need not satisfy exact weighted-mean equality. The primary Score documentation describes equality without a precision rule. `response_validation_v2` accepts only a jointly feasible rounding interval (each displayed probability ±0.005, sum exactly one, and expected score intersecting reported score ±0.005). Full-precision values retain stricter checks. No values are renormalized or replaced. First strict smoke correctly returned partial; the revised pinned adapter completed a live judgment. This is interface verification, not a service benchmark.
+- Budget accounting is shared across configured local corpus directories via `JEVTWEET_ACCOUNT_DIR`; unknown network attempts retain reservations. It cannot control unrelated programs' account usage.
+- Default forecast tiers are fixed product probability bands declared before any holdout: 1%, 5%, 15%, 35%. They are not score quantiles or implied evenly spaced success probabilities.
+
+- Explicit initial rubric revision `rubric_v1.1`: added a separate reference-set adequacy Choice for the enriched profile. Three irrelevant references must not turn into a novelty judgment. Original eight ordered criteria and weights are unchanged; missing/inadequate/unknown comparison evidence marks distinctiveness not assessable.

@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "proposals": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Proposals",
+      "type": "array"
+    },
+    "cost_limit_usd": {
+      "exclusiveMinimum": 0,
+      "title": "Cost Limit Usd",
+      "type": "number"
+    },
+    "max_rows": {
+      "default": 100,
+      "maximum": 1000,
+      "minimum": 24,
+      "title": "Max Rows",
+      "type": "integer"
+    },
+    "max_requests": {
+      "default": 100,
+      "maximum": 8000,
+      "minimum": 1,
+      "title": "Max Requests",
+      "type": "integer"
+    },
+    "live": {
+      "default": false,
+      "title": "Live",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "proposals",
+    "cost_limit_usd"
+  ],
+  "title": "DiscoveryRequest",
+  "type": "object"
+}

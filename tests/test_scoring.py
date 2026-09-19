@@ -1,6 +1,7 @@
 """Software-policy checks using original synthetic answers, never service benchmarks."""
-from copy import deepcopy
+
 import math
+from copy import deepcopy
 
 import pytest
 
@@ -13,11 +14,15 @@ from jevtweet.scoring import score
 def complete(raw=2.0, risk=0.0, confidence=0.9):
     rubric = load_rubric()
     result = {
-        key: Factor(question_id=key, type="score", score=risk if key == "aversion" else raw,
-                    confidence=confidence)
+        key: Factor(
+            question_id=key, type="score", score=risk if key == "aversion" else raw, confidence=confidence
+        )
         for key in rubric["profiles"]["reference_enriched_v1"] + ["direct_overall"]
     }
     result.update(
+        reference_adequacy=Factor(
+            question_id="reference_adequacy", type="choice", choice="adequate", confidence=1
+        ),
         assessability=Factor(question_id="assessability", type="choice", choice="assessable", confidence=1),
         missing_context=Factor(question_id="missing_context", type="noul", noul=0),
         instruction_like=Factor(question_id="instruction_like", type="noul", noul=0),
@@ -25,8 +30,10 @@ def complete(raw=2.0, risk=0.0, confidence=0.9):
     return result
 
 
-@pytest.mark.parametrize("raw,continuous,integer", [(0, 1, 1), (0.5, 1.5, 2), (1.5, 2.5, 3),
-                                                      (2.5, 3.5, 4), (3.5, 4.5, 5), (4, 5, 5)])
+@pytest.mark.parametrize(
+    "raw,continuous,integer",
+    [(0, 1, 1), (0.5, 1.5, 2), (1.5, 2.5, 3), (2.5, 3.5, 4), (3.5, 4.5, 5), (4, 5, 5)],
+)
 def test_zero_based_conversion_and_half_up_rounding(raw, continuous, integer):
     result = score(complete(raw), "text_core_v1")
     assert result["status"] == "scored"
@@ -36,9 +43,9 @@ def test_zero_based_conversion_and_half_up_rounding(raw, continuous, integer):
 
 @pytest.mark.parametrize("profile", ["text_core_v1", "reference_enriched_v1"])
 def test_risk_monotonicity_and_finite_bounds(profile):
-    for raw in [0, .01, .5, 1, 1.7, 2.3, 3, 3.7, 4]:
+    for raw in [0, 0.01, 0.5, 1, 1.7, 2.3, 3, 3.7, 4]:
         previous = 5
-        for risk in [0, .1, 1, 2, 3.5, 4]:
+        for risk in [0, 0.1, 1, 2, 3.5, 4]:
             result = score(complete(raw, risk), profile)
             assert 1 <= result["score_continuous"] <= previous
             assert 1 <= result["score_1_to_5"] <= 5
@@ -51,11 +58,14 @@ def test_explanation_contributions_reconstruct_calculation():
     factors["clarity"].score = 1
     result = score(factors, "text_core_v1")
     assert result["quality"] == pytest.approx(2 / 3)
-    assert result["risk_penalty"] == .125
-    assert result["score_continuous"] == pytest.approx(1 + 4 * (2 / 3 - .125))
-    assert math.fsum(item["quality_contribution"] for item in result["explanation"]["contributions"]) == result["quality"]
+    assert result["risk_penalty"] == 0.125
+    assert result["score_continuous"] == pytest.approx(1 + 4 * (2 / 3 - 0.125))
+    assert (
+        math.fsum(item["quality_contribution"] for item in result["explanation"]["contributions"])
+        == result["quality"]
+    )
     assert result["explanation"]["weakest_factors"][0]["question_id"] == "clarity"
-    assert result["explanation"]["risk_penalty_rating_points"] == .5
+    assert result["explanation"]["risk_penalty_rating_points"] == 0.5
     assert "not a calibrated probability" in result["explanation"]["meaning"]
 
 
@@ -67,14 +77,16 @@ def test_no_aversion_does_not_award_positive_content_points():
 
 def test_certainty_is_a_review_signal_not_score_multiplier():
     high = score(complete(3, confidence=1), "text_core_v1")
-    low = score(complete(3, confidence=.01), "text_core_v1")
+    low = score(complete(3, confidence=0.01), "text_core_v1")
     assert high["score_continuous"] == low["score_continuous"]
     assert low["score_1_to_5"] == high["score_1_to_5"]
     assert "low_answer_certainty:relevance" in low["review_flags"]
     assert high["review_flags"] == []
 
 
-@pytest.mark.parametrize("missing", ["relevance", "clarity", "sharing", "conversation", "attention", "follow", "aversion"])
+@pytest.mark.parametrize(
+    "missing", ["relevance", "clarity", "sharing", "conversation", "attention", "follow", "aversion"]
+)
 def test_required_factor_missing_does_not_renormalize(missing):
     factors = complete(4)
     del factors[missing]
@@ -95,8 +107,10 @@ def test_unavailable_novelty_requires_a_separate_explicit_core_judgment():
     assert score(factors, "text_core_v1")["score_1_to_5"] == 5
 
 
-@pytest.mark.parametrize("evidence", ["essential_parent_context", "essential_quoted_context",
-                                    "essential_media_description", "empty_content"])
+@pytest.mark.parametrize(
+    "evidence",
+    ["essential_parent_context", "essential_quoted_context", "essential_media_description", "empty_content"],
+)
 def test_missing_essential_evidence_blocks_a_high_headline(evidence):
     result = score(complete(4), "text_core_v1", missing_evidence=[evidence])
     assert result["status"] in {"partial", "abstained"}
@@ -131,7 +145,7 @@ def test_model_assessability_states(choice, status):
 
 def test_context_and_injection_thresholds_are_separate():
     factors = complete(4)
-    factors["instruction_like"].noul = .99
+    factors["instruction_like"].noul = 0.99
     result = score(factors, "text_core_v1")
     assert result["status"] == "scored"
     assert "instruction_like_content" in result["review_flags"]
@@ -172,7 +186,7 @@ def test_scoring_never_mutates_answers_or_config():
     rubric["policy"]["aversion_penalty"] = 1
     score(factors, "reference_enriched_v1")
     assert factors == original
-    assert load_rubric()["policy"]["aversion_penalty"] == .25
+    assert load_rubric()["policy"]["aversion_penalty"] == 0.25
 
 
 def test_questions_are_complete_ordered_specs_and_reference_aware():
@@ -180,7 +194,8 @@ def test_questions_are_complete_ordered_specs_and_reference_aware():
     core = build_questions(state, "text_core_v1")
     enriched_missing = build_questions(state, "reference_enriched_v1")
     assert "distinctiveness" not in enriched_missing
-    assert core == enriched_missing
+    assert core == {k: v for k, v in enriched_missing.items() if k != "reference_adequacy"}
+    assert enriched_missing["reference_adequacy"]["type"] == "choice"
     state["references"] = [{"candidate_id": str(i), "text": f"Synthetic reference {i}"} for i in range(3)]
     assert "distinctiveness" in build_questions(state, "reference_enriched_v1")
     for spec in core.values():
@@ -223,3 +238,12 @@ async def test_synthetic_adapter_is_deterministic():
     second = await MockProvider().ask(state, questions)
     assert first == second
     assert score(first.factors, "text_core_v1")["status"] == "scored"
+
+
+def test_irrelevant_reference_set_never_becomes_novelty():
+    factors = complete()
+    factors["reference_adequacy"].choice = "not_assessable"
+    result = score(factors, "reference_enriched_v1")
+    assert result["status"] == "partial" and result["score_1_to_5"] is None
+    assert result["factors"]["distinctiveness"].assessability == "not_assessable"
+    assert factors["distinctiveness"].assessability == "assessable"

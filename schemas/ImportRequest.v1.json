@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "content": {
+      "maxLength": 10000000,
+      "title": "Content",
+      "type": "string"
+    },
+    "format": {
+      "default": "jsonl",
+      "enum": [
+        "csv",
+        "jsonl"
+      ],
+      "title": "Format",
+      "type": "string"
+    },
+    "mapping": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Mapping",
+      "type": "object"
+    },
+    "preview": {
+      "default": false,
+      "title": "Preview",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "title": "ImportRequest",
+  "type": "object"
+}

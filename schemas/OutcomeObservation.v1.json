@@ -1,0 +1,134 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "observation_id": {
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_version": {
+      "default": 1,
+      "title": "Candidate Version",
+      "type": "integer"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "metric": {
+      "default": "views",
+      "enum": [
+        "views",
+        "impressions"
+      ],
+      "title": "Metric",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "elapsed_hours": {
+      "minimum": 0,
+      "title": "Elapsed Hours",
+      "type": "number"
+    },
+    "views": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Views"
+    },
+    "likes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Likes"
+    },
+    "reposts": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reposts"
+    },
+    "replies": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Replies"
+    },
+    "distribution": {
+      "default": "unknown",
+      "enum": [
+        "organic",
+        "paid",
+        "giveaway",
+        "unknown"
+      ],
+      "title": "Distribution",
+      "type": "string"
+    },
+    "provenance": {
+      "default": "manual",
+      "title": "Provenance",
+      "type": "string"
+    },
+    "synthetic": {
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "source",
+    "observed_at",
+    "available_at",
+    "elapsed_hours"
+  ],
+  "title": "OutcomeObservation",
+  "type": "object"
+}

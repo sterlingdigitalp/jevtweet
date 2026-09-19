@@ -1,9 +1,10 @@
 """Independent synthetic runtime regressions; no provider network requests."""
+
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from datetime import datetime, timedelta, timezone
 import multiprocessing
 import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -23,7 +24,12 @@ def settings(tmp_path, **kwargs):
 
 def request(candidate_id="fixture"):
     return JudgeRequest(
-        candidate=Candidate(candidate_id=candidate_id, text="A concrete regression fixture", content_available_at=T, synthetic=True),
+        candidate=Candidate(
+            candidate_id=candidate_id,
+            text="A concrete regression fixture",
+            content_available_at=T,
+            synthetic=True,
+        ),
         context=PredictionContext(prediction_cutoff=T),
     )
 
@@ -34,7 +40,7 @@ async def test_distinct_services_share_cache_without_duplicate_provider_call(tmp
 
         async def ask(self, state, questions):
             self.calls += 1
-            await asyncio.sleep(.05)
+            await asyncio.sleep(0.05)
             return await super().ask(state, questions)
 
     provider = Counting()
@@ -69,7 +75,7 @@ async def test_external_service_cancellation_survives_worker_save(tmp_path):
         await asyncio.wait_for(started.wait(), 2)
         controller.cancel_job(job["job_id"])
         # Allow the durable cancellation watcher to observe the request.
-        await asyncio.sleep(.3)
+        await asyncio.sleep(0.3)
         released.set()
         await asyncio.wait_for(task, 3)
         saved = controller.store.get("job", job["job_id"])
@@ -88,22 +94,37 @@ async def test_external_service_cancellation_survives_worker_save(tmp_path):
 
 def test_concurrent_semantic_outcome_identity_is_immutable(tmp_path, monkeypatch):
     store = Store(tmp_path / "data")
-    store.put("candidate", "fixture:1", Candidate(candidate_id="fixture", text="Synthetic fixture", published_at=T, content_available_at=T, synthetic=True))
+    store.put(
+        "candidate",
+        "fixture:1",
+        Candidate(
+            candidate_id="fixture",
+            text="Synthetic fixture",
+            published_at=T,
+            content_available_at=T,
+            synthetic=True,
+        ),
+    )
     original_put = Store.put
 
     def delayed_put(self, kind, identity, value, **kwargs):
         # Widen any check-before-write race without imposing a transaction model.
         if kind == "outcome":
-            time.sleep(.03)
+            time.sleep(0.03)
         return original_put(self, kind, identity, value, **kwargs)
 
     monkeypatch.setattr(Store, "put", delayed_put)
 
     def attach(i):
         outcome = OutcomeObservation(
-            observation_id=f"observation-{i}", candidate_id="fixture", source="synthetic_manual",
-            observed_at=T + timedelta(hours=48), available_at=T + timedelta(hours=48),
-            elapsed_hours=48, views=i, synthetic=True,
+            observation_id=f"observation-{i}",
+            candidate_id="fixture",
+            source="synthetic_manual",
+            observed_at=T + timedelta(hours=48),
+            available_at=T + timedelta(hours=48),
+            elapsed_hours=48,
+            views=i,
+            synthetic=True,
         )
         try:
             attach_outcome(store, outcome)
@@ -121,7 +142,7 @@ def _reserve_process(args):
     directory, index = args
     store = Store(directory)
     try:
-        store.reserve(f"process-{index}", .25, 1.0, 120)
+        store.reserve(f"process-{index}", 0.25, 1.0, 120)
         return True
     except BudgetError:
         return False
@@ -135,7 +156,7 @@ def test_spending_ceiling_survives_independent_processes(tmp_path):
     assert sum(accepted) == 4
     assert Store(directory).spending() == {"charged_or_reserved_usd": 1.0, "reserved_attempts": 4}
     with pytest.raises(BudgetError):
-        Store(directory).reserve("after-restart", .01, 1.0, 120)
+        Store(directory).reserve("after-restart", 0.01, 1.0, 120)
 
 
 async def test_job_and_judgment_leases_refresh_during_slow_provider(tmp_path):
@@ -160,7 +181,7 @@ async def test_job_and_judgment_leases_refresh_during_slow_provider(tmp_path):
         with service.store.connect() as db:
             before = {row["key"]: row["expires_epoch"] for row in db.execute("SELECT * FROM leases")}
         assert any(key.startswith("judgment:") for key in before)
-        assert f'job:{job["job_id"]}' in before
+        assert f"job:{job['job_id']}" in before
         await asyncio.sleep(5.2)
         with service.store.connect() as db:
             after = {row["key"]: row["expires_epoch"] for row in db.execute("SELECT * FROM leases")}
@@ -197,7 +218,7 @@ async def test_reference_inadequacy_is_preserved_in_persisted_factor(tmp_path):
             result = await super().ask(state, questions)
             adequacy = result.factors["reference_adequacy"]
             adequacy.choice = "not_assessable"
-            adequacy.probabilities = {"adequate": 0., "not_assessable": 1., "unknown": 0.}
+            adequacy.probabilities = {"adequate": 0.0, "not_assessable": 1.0, "unknown": 0.0}
             return result
 
     r = request()
@@ -207,7 +228,15 @@ async def test_reference_inadequacy_is_preserved_in_persisted_factor(tmp_path):
         "Test data isolation makes migration failures reproducible",
         "Safer deployment starts with an explicit rollback checklist",
     ]
-    r.context.references = [Reference(candidate_id=f"ref-{i}", text=text, published_at=T - timedelta(days=4), available_at=T - timedelta(days=4)) for i, text in enumerate(reference_texts)]
+    r.context.references = [
+        Reference(
+            candidate_id=f"ref-{i}",
+            text=text,
+            published_at=T - timedelta(days=4),
+            available_at=T - timedelta(days=4),
+        )
+        for i, text in enumerate(reference_texts)
+    ]
     service = Service(settings(tmp_path), InadequateReferences())
     result = await service.judge(r)
     assert result.status == "partial" and result.score_1_to_5 is None

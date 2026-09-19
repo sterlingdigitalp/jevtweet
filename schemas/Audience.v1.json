@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "audience_id": {
+      "title": "Audience Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "interests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Interests",
+      "type": "array"
+    },
+    "assumed_knowledge": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumed Knowledge",
+      "type": "array"
+    },
+    "examples": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Examples",
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "audience_id",
+    "version",
+    "description",
+    "interests",
+    "assumed_knowledge",
+    "examples"
+  ],
+  "title": "Audience",
+  "type": "object"
+}

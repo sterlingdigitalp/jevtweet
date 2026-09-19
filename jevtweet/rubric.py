@@ -1,4 +1,5 @@
 """The sole versioned source of semantic questions and editorial policy."""
+
 from __future__ import annotations
 
 import json
@@ -17,8 +18,10 @@ def _read_rubric() -> dict:
             raise ValueError(f"Question {name} needs self-contained instructions")
         if question["type"] == "score":
             criteria = question["criteria"]
-            if not isinstance(criteria, list) or len(criteria) != 5 or not all(
-                isinstance(level, str) and level.strip() for level in criteria
+            if (
+                not isinstance(criteria, list)
+                or len(criteria) != 5
+                or not all(isinstance(level, str) and level.strip() for level in criteria)
             ):
                 raise ValueError(f"Question {name} must have five ordered descriptive criteria")
         elif question["type"] == "choice":
@@ -62,11 +65,13 @@ def reference_count(state: dict) -> int:
     references = state.get("references", [])
     if not isinstance(references, list):
         return 0
-    return len({
-        ref["text"].strip()
-        for ref in references
-        if isinstance(ref, dict) and isinstance(ref.get("text"), str) and ref["text"].strip()
-    })
+    return len(
+        {
+            ref["text"].strip()
+            for ref in references
+            if isinstance(ref, dict) and isinstance(ref.get("text"), str) and ref["text"].strip()
+        }
+    )
 
 
 def build_questions(state: dict, profile_id: str) -> dict:
@@ -79,7 +84,9 @@ def build_questions(state: dict, profile_id: str) -> dict:
     rubric = load_rubric()
     if profile_id not in rubric["profiles"]:
         raise ValueError(f"Unknown editorial profile: {profile_id}")
-    keys = rubric["profiles"][profile_id] + rubric["auxiliary_questions"]
+    keys = (
+        rubric["profiles"][profile_id] + rubric["auxiliary_questions"] + rubric["profile_checks"][profile_id]
+    )
     return {
         key: {field: rubric["questions"][key][field] for field in ("type", "instructions", "criteria")}
         for key in keys

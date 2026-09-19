@@ -1,0 +1,462 @@
+{
+  "$defs": {
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "candidate_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "candidate_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Candidate Version",
+          "type": "integer"
+        },
+        "text": {
+          "maxLength": 16000,
+          "title": "Text",
+          "type": "string"
+        },
+        "language": {
+          "default": "en",
+          "title": "Language",
+          "type": "string"
+        },
+        "post_type": {
+          "default": "original",
+          "enum": [
+            "original",
+            "reply",
+            "quote",
+            "thread"
+          ],
+          "title": "Post Type",
+          "type": "string"
+        },
+        "author_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author Id"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        },
+        "content_available_at": {
+          "format": "date-time",
+          "title": "Content Available At",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quoted": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "media": {
+          "$ref": "#/$defs/Media"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread Id"
+        },
+        "niche": {
+          "default": "production_ai_coding",
+          "title": "Niche",
+          "type": "string"
+        },
+        "distribution": {
+          "default": "unknown",
+          "enum": [
+            "organic",
+            "paid",
+            "giveaway",
+            "unknown"
+          ],
+          "title": "Distribution",
+          "type": "string"
+        },
+        "provenance": {
+          "default": "manual",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "synthetic": {
+          "default": false,
+          "title": "Synthetic",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Candidate",
+      "type": "object"
+    },
+    "EvidenceText": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 12000,
+          "title": "Text",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "provenance": {
+          "default": "manual",
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "occurred_at",
+        "available_at"
+      ],
+      "title": "EvidenceText",
+      "type": "object"
+    },
+    "HistoricalMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "followers": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Followers"
+        },
+        "normal_48h_views": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normal 48H Views"
+        },
+        "baseline_sample_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Baseline Sample Count",
+          "type": "integer"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "provenance": {
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observed_at",
+        "available_at",
+        "provenance"
+      ],
+      "title": "HistoricalMetadata",
+      "type": "object"
+    },
+    "Media": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "image",
+            "video",
+            "audio",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "essential": {
+          "default": false,
+          "title": "Essential",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Media",
+      "type": "object"
+    },
+    "PredictionContext": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "prediction_cutoff": {
+          "format": "date-time",
+          "title": "Prediction Cutoff",
+          "type": "string"
+        },
+        "historical": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoricalMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "topic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/Reference"
+          },
+          "maxItems": 10,
+          "title": "References",
+          "type": "array"
+        },
+        "evaluation_split": {
+          "default": "prospective",
+          "enum": [
+            "train",
+            "development",
+            "prospective",
+            "test"
+          ],
+          "title": "Evaluation Split",
+          "type": "string"
+        },
+        "reference_rule": {
+          "default": "keyword_overlap_v1; earlier available text; no target/near-duplicate/thread/test",
+          "title": "Reference Rule",
+          "type": "string"
+        }
+      },
+      "title": "PredictionContext",
+      "type": "object"
+    },
+    "Reference": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "candidate_version": {
+          "default": 1,
+          "title": "Candidate Version",
+          "type": "integer"
+        },
+        "text": {
+          "maxLength": 16000,
+          "title": "Text",
+          "type": "string"
+        },
+        "published_at": {
+          "format": "date-time",
+          "title": "Published At",
+          "type": "string"
+        },
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "split": {
+          "default": "development",
+          "enum": [
+            "train",
+            "development",
+            "prospective",
+            "test"
+          ],
+          "title": "Split",
+          "type": "string"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread Id"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "text",
+        "published_at",
+        "available_at"
+      ],
+      "title": "Reference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "candidate": {
+      "$ref": "#/$defs/Candidate"
+    },
+    "context": {
+      "$ref": "#/$defs/PredictionContext"
+    },
+    "audience_id": {
+      "default": "production_ai_coding",
+      "title": "Audience Id",
+      "type": "string"
+    },
+    "profile_id": {
+      "default": "text_core_v1",
+      "enum": [
+        "text_core_v1",
+        "reference_enriched_v1"
+      ],
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "execution_mode": {
+      "default": "mock",
+      "enum": [
+        "live",
+        "mock"
+      ],
+      "title": "Execution Mode",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate"
+  ],
+  "title": "JudgeRequest",
+  "type": "object"
+}

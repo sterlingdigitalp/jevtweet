@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "candidate_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Candidate Ids",
+      "type": "array"
+    },
+    "audience_id": {
+      "default": "production_ai_coding",
+      "title": "Audience Id",
+      "type": "string"
+    },
+    "profile_id": {
+      "default": "text_core_v1",
+      "enum": [
+        "text_core_v1",
+        "reference_enriched_v1"
+      ],
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "execution_mode": {
+      "default": "mock",
+      "enum": [
+        "mock",
+        "live"
+      ],
+      "title": "Execution Mode",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_ids"
+  ],
+  "title": "JobRequest",
+  "type": "object"
+}

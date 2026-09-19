@@ -1,10 +1,13 @@
 """Canonical v1 contracts. Only the integration lead changes this module."""
+
 from __future__ import annotations
+
 import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -28,7 +31,7 @@ def digest(value: Any) -> str:
 
 class Record(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-    schema_version: str = "1"
+    schema_version: Literal["1"] = "1"
 
     @field_validator("*", mode="after")
     @classmethod
@@ -165,6 +168,8 @@ class Judgment(Record):
     label_definition_id: str | None = None
     predictor_id: str | None = None
     calibration_status: str = "not_established"
+    evidence_completeness: Literal["complete", "partial", "unknown"] = "unknown"
+    execution_status: Literal["succeeded", "partial", "failed", "not_attempted"] = "not_attempted"
     factors: dict[str, Factor] = Field(default_factory=dict)
     review_flags: list[str] = Field(default_factory=list)
     explanation: dict[str, Any] = Field(default_factory=dict)
@@ -212,3 +217,47 @@ class Annotation(Record):
     annotator: str
     created_at: datetime = Field(default_factory=now)
     note: str = ""
+
+
+class ImportRequest(Record):
+    content: str = Field(max_length=10_000_000)
+    format: Literal["csv", "jsonl"] = "jsonl"
+    mapping: dict[str, str] = Field(default_factory=dict)
+    preview: bool = False
+
+
+class JobRequest(Record):
+    candidate_ids: list[str] = Field(min_length=1, max_length=1000)
+    audience_id: str = "production_ai_coding"
+    profile_id: Literal["text_core_v1", "reference_enriched_v1"] = "text_core_v1"
+    execution_mode: Literal["mock", "live"] = "mock"
+
+
+class CompareRequest(Record):
+    requests: list[JudgeRequest] = Field(min_length=2, max_length=8)
+
+
+class EvaluationRequest(Record):
+    synthetic: bool = False
+    task: Literal["breakout_48h_v1", "absolute_48h_v1"] = "breakout_48h_v1"
+    representative_sampling: bool = False
+    comparison_population: str = ""
+    cohort: dict[str, str] | None = None
+
+
+class DiscoveryRequest(Record):
+    experiment_id: str
+    proposals: list[dict[str, Any]] = Field(min_length=1, max_length=8)
+    cost_limit_usd: float = Field(gt=0)
+    max_rows: int = Field(default=100, ge=24, le=1000)
+    max_requests: int = Field(default=100, ge=1, le=8000)
+    live: bool = False
+
+
+class PromotionRequest(Record):
+    approved_by: str = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+
+
+class ExperimentComparisonRequest(Record):
+    experiment_ids: list[str] = Field(min_length=2, max_length=8)

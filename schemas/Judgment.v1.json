@@ -1,0 +1,454 @@
+{
+  "$defs": {
+    "Factor": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "question_id": {
+          "title": "Question Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "score",
+            "choice",
+            "noul"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "assessability": {
+          "default": "assessable",
+          "enum": [
+            "assessable",
+            "not_assessable",
+            "unknown"
+          ],
+          "title": "Assessability",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 4,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "choice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choice"
+        },
+        "noul": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Noul"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "probabilities": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Probabilities",
+          "type": "object"
+        },
+        "legend": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Legend",
+          "type": "object"
+        },
+        "evidence_references": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence References",
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "question_id",
+        "type"
+      ],
+      "title": "Factor",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "judgment_id": {
+      "title": "Judgment Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_version": {
+      "title": "Candidate Version",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "scored",
+        "partial",
+        "abstained",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "execution_mode": {
+      "enum": [
+        "live",
+        "mock"
+      ],
+      "title": "Execution Mode",
+      "type": "string"
+    },
+    "mode": {
+      "default": "editorial",
+      "enum": [
+        "editorial",
+        "forecast"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "profile_id": {
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "audience_id": {
+      "title": "Audience Id",
+      "type": "string"
+    },
+    "audience_version": {
+      "title": "Audience Version",
+      "type": "string"
+    },
+    "rubric_version": {
+      "title": "Rubric Version",
+      "type": "string"
+    },
+    "score_continuous": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score Continuous"
+    },
+    "score_1_to_5": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score 1 To 5"
+    },
+    "quality": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quality"
+    },
+    "risk_penalty": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Risk Penalty"
+    },
+    "breakout_probability": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Breakout Probability"
+    },
+    "label_definition_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Label Definition Id"
+    },
+    "predictor_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predictor Id"
+    },
+    "calibration_status": {
+      "default": "not_established",
+      "title": "Calibration Status",
+      "type": "string"
+    },
+    "evidence_completeness": {
+      "default": "unknown",
+      "enum": [
+        "complete",
+        "partial",
+        "unknown"
+      ],
+      "title": "Evidence Completeness",
+      "type": "string"
+    },
+    "execution_status": {
+      "default": "not_attempted",
+      "enum": [
+        "succeeded",
+        "partial",
+        "failed",
+        "not_attempted"
+      ],
+      "title": "Execution Status",
+      "type": "string"
+    },
+    "factors": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Factor"
+      },
+      "title": "Factors",
+      "type": "object"
+    },
+    "review_flags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review Flags",
+      "type": "array"
+    },
+    "explanation": {
+      "additionalProperties": true,
+      "title": "Explanation",
+      "type": "object"
+    },
+    "provenance": {
+      "additionalProperties": true,
+      "title": "Provenance",
+      "type": "object"
+    },
+    "model_requested": {
+      "title": "Model Requested",
+      "type": "string"
+    },
+    "model_returned": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Returned"
+    },
+    "sdk_version": {
+      "default": "0.7.0",
+      "title": "Sdk Version",
+      "type": "string"
+    },
+    "input_hash": {
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "reference_set_hash": {
+      "title": "Reference Set Hash",
+      "type": "string"
+    },
+    "code_commit": {
+      "title": "Code Commit",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "usage": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Usage",
+      "type": "object"
+    },
+    "estimated_cost": {
+      "default": 0,
+      "title": "Estimated Cost",
+      "type": "number"
+    },
+    "cost_is_estimate": {
+      "default": true,
+      "title": "Cost Is Estimate",
+      "type": "boolean"
+    },
+    "latency": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency"
+    },
+    "attempt_count": {
+      "default": 0,
+      "title": "Attempt Count",
+      "type": "integer"
+    },
+    "error_category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Category"
+    },
+    "cached": {
+      "default": false,
+      "title": "Cached",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "candidate_version",
+    "status",
+    "execution_mode",
+    "profile_id",
+    "audience_id",
+    "audience_version",
+    "rubric_version",
+    "model_requested",
+    "input_hash",
+    "reference_set_hash",
+    "code_commit"
+  ],
+  "title": "Judgment",
+  "type": "object"
+}

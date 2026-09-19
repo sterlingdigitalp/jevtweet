@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "EvidenceText": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 12000,
+          "title": "Text",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "provenance": {
+          "default": "manual",
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "occurred_at",
+        "available_at"
+      ],
+      "title": "EvidenceText",
+      "type": "object"
+    },
+    "Media": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "image",
+            "video",
+            "audio",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "essential": {
+          "default": false,
+          "title": "Essential",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Media",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "candidate_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Candidate Version",
+      "type": "integer"
+    },
+    "text": {
+      "maxLength": 16000,
+      "title": "Text",
+      "type": "string"
+    },
+    "language": {
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    },
+    "post_type": {
+      "default": "original",
+      "enum": [
+        "original",
+        "reply",
+        "quote",
+        "thread"
+      ],
+      "title": "Post Type",
+      "type": "string"
+    },
+    "author_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author Id"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Published At"
+    },
+    "content_available_at": {
+      "format": "date-time",
+      "title": "Content Available At",
+      "type": "string"
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvidenceText"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "quoted": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvidenceText"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "media": {
+      "$ref": "#/$defs/Media"
+    },
+    "thread_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Thread Id"
+    },
+    "niche": {
+      "default": "production_ai_coding",
+      "title": "Niche",
+      "type": "string"
+    },
+    "distribution": {
+      "default": "unknown",
+      "enum": [
+        "organic",
+        "paid",
+        "giveaway",
+        "unknown"
+      ],
+      "title": "Distribution",
+      "type": "string"
+    },
+    "provenance": {
+      "default": "manual",
+      "title": "Provenance",
+      "type": "string"
+    },
+    "synthetic": {
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "Candidate",
+  "type": "object"
+}
